@@ -1,0 +1,231 @@
+"""Application bootstrap.
+
+Single-instance guard, QApplication, model load on a background thread, and the
+wiring between the hotkey listener, the controller, the overlay, and the tray.
+The app launches to the tray with no window open (handoff Section 4).
+"""
+
+from __future__ import annotations
+
+import sys
+import socket
+import logging
+import threading
+from pathlib import Path
+
+from PySide6.QtCore import Qt
+from PySide6.QtGui import QIcon, QPixmap, QPainter, QColor, QFont
+from PySide6.QtWidgets import QApplication, QSystemTrayIcon, QMessageBox
+
+from . import config as gn_config
+from . import profiles as gn_profiles
+from . import hotkeys as gn_hotkeys
+from . import transcribe as gn_transcribe
+from .controller import Controller
+from .overlay import Overlay
+from .tray import Tray
+from .gui.settings_window import SettingsWindow
+
+log = logging.getLogger("gamenote")
+
+SINGLE_INSTANCE_PORT = 49321  # localhost port used only to block a second instance
+
+
+def _setup_logging(global_cfg: dict) -> None:
+    handlers: list[logging.Handler] = [
+        logging.FileHandler(str(gn_config.log_path()), encoding="utf-8")
+    ]
+    if sys.stderr is not None:  # pythonw has no console; avoid StreamHandler errors
+        handlers.append(logging.StreamHandler())
+    level = getattr(logging, str(global_cfg.get("log_level", "INFO")).upper(), logging.INFO)
+    logging.basicConfig(
+        level=level,
+        format="%(asctime)s [%(levelname)s] %(message)s",
+        handlers=handlers,
+    )
+    for noisy in ("httpx", "httpcore", "huggingface_hub", "urllib3"):
+        logging.getLogger(noisy).setLevel(logging.WARNING)
+
+
+def single_instance_guard() -> socket.socket | None:
+    """Bind a localhost port so a second copy refuses to start. Returns the bound
+    socket (held for the process lifetime), or None if another instance owns it."""
+    s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    try:
+        s.bind(("127.0.0.1", SINGLE_INSTANCE_PORT))
+    except OSError:
+        return None
+    return s
+
+
+def _draw_fallback_icon() -> QIcon:
+    """A simple drawn icon used when assets/icon.ico is absent."""
+    pix = QPixmap(64, 64)
+    pix.fill(Qt.transparent)
+    p = QPainter(pix)
+    p.setRenderHint(QPainter.Antialiasing, True)
+    p.setBrush(QColor("#2d6cdf"))
+    p.setPen(Qt.NoPen)
+    p.drawRoundedRect(4, 4, 56, 56, 14, 14)
+    p.setPen(QColor("#ffffff"))
+    font = QFont("Segoe UI", 30, QFont.Bold)
+    p.setFont(font)
+    p.drawText(pix.rect(), Qt.AlignCenter, "N")
+    p.end()
+    return QIcon(pix)
+
+
+def load_icon() -> QIcon:
+    candidates = [Path(__file__).with_name("assets") / "icon.ico"]
+    meipass = getattr(sys, "_MEIPASS", None)
+    if meipass:
+        candidates.append(Path(meipass) / "gamenote" / "assets" / "icon.ico")
+    for icon_path in candidates:
+        if icon_path.exists():
+            icon = QIcon(str(icon_path))
+            if not icon.isNull():
+                return icon
+    return _draw_fallback_icon()
+
+
+def main() -> int:
+    guard = single_instance_guard()
+    if guard is None:
+        # Use a throwaway app so we can show a native message box.
+        tmp = QApplication.instance() or QApplication(sys.argv)
+        QMessageBox.warning(None, "gamenote", "gamenote is already running.")
+        return 1
+
+    cfg = gn_config.load_config()
+    global_cfg = cfg["global"]
+    _setup_logging(global_cfg)
+    log.info("Starting gamenote.")
+
+    app = QApplication.instance() or QApplication(sys.argv)
+    app.setApplicationName("gamenote")
+    app.setQuitOnLastWindowClosed(False)  # live in the tray, not a window
+
+    if not QSystemTrayIcon.isSystemTrayAvailable():
+        QMessageBox.critical(None, "gamenote", "No system tray is available.")
+        return 1
+
+    icon = load_icon()
+    app.setWindowIcon(icon)
+
+    profiles = gn_profiles.profiles_from_config(cfg)
+    for problem in gn_profiles.validate_profiles(profiles):
+        log.warning("Profile config: %s", problem)
+
+    transcriber = gn_transcribe.Transcriber(global_cfg)
+    controller = Controller(transcriber, profiles, cfg)
+
+    overlay = Overlay(hide_ms=int(global_cfg["overlay"]["hide_ms"]))
+    overlay_state = {"connected": False}
+
+    def set_overlay_enabled(enabled: bool) -> None:
+        if enabled and not overlay_state["connected"]:
+            controller.overlay_message.connect(overlay.show_message, Qt.QueuedConnection)
+            overlay_state["connected"] = True
+        elif not enabled and overlay_state["connected"]:
+            try:
+                controller.overlay_message.disconnect(overlay.show_message)
+            except (RuntimeError, TypeError):
+                pass
+            overlay_state["connected"] = False
+
+    set_overlay_enabled(bool(global_cfg["overlay"]["enabled"]))
+
+    manager = gn_hotkeys.HotkeyManager()
+    windows: dict[str, SettingsWindow] = {}
+
+    def load_model_async() -> None:
+        def run() -> None:
+            try:
+                controller.status_changed.emit("loading")
+                device = transcriber.load()
+                controller.status_changed.emit(f"ready ({device})")
+                controller.overlay_message.emit("gamenote ready", "#cfe8ff", False)
+            except Exception as e:
+                log.error("Model load failed: %s", e)
+                controller.status_changed.emit("model error")
+                controller.overlay_message.emit("model load failed", "#ffb3b3", False)
+        threading.Thread(target=run, daemon=True).start()
+
+    def on_apply(new_profiles: list) -> None:
+        """Apply settings live: persist, swap profiles + hotkeys, update the
+        overlay, and reload the model only if its size changed and no note is
+        recording."""
+        gn_config.save_config(cfg)
+        controller.apply_profiles(new_profiles)
+        controller.refresh_from_config()
+        new_mapping = gn_hotkeys.build_mapping(new_profiles, controller.trigger.emit)
+        for hk in manager.set_mapping(new_mapping):
+            log.error("Hotkey '%s' failed to register.", hk)
+        overlay.hide_ms = int(global_cfg["overlay"]["hide_ms"])
+        set_overlay_enabled(bool(global_cfg["overlay"]["enabled"]))
+        tray.refresh()
+        if transcriber.loaded_model_size and transcriber.loaded_model_size != global_cfg["model_size"]:
+            if controller.is_recording:
+                QMessageBox.information(
+                    None, "gamenote",
+                    "Model size changed. It will reload next time you open settings "
+                    "(a note is recording right now).",
+                )
+            else:
+                log.info("Model size changed to '%s'; reloading.", global_cfg["model_size"])
+                load_model_async()
+        log.info("Settings applied.")
+
+    def open_settings() -> None:
+        existing = windows.get("settings")
+        if existing is not None and existing.isVisible():
+            existing.raise_()
+            existing.activateWindow()
+            return
+        win = SettingsWindow(cfg, on_apply)
+        windows["settings"] = win
+        win.show()
+        win.raise_()
+        win.activateWindow()
+
+    def quit_app() -> None:
+        log.info("Quitting.")
+        manager.unregister()
+        app.quit()
+
+    tray = Tray(
+        icon=icon,
+        controller=controller,
+        hotkey_manager=manager,
+        on_open_settings=open_settings,
+        on_quit=quit_app,
+        save_config=lambda: gn_config.save_config(cfg),
+    )
+
+    # Register hotkeys now; presses are ignored with a "loading" overlay until
+    # the model is ready.
+    mapping = gn_hotkeys.build_mapping(profiles, controller.trigger.emit)
+    for hk in manager.register(mapping):
+        log.error("Hotkey '%s' failed to register.", hk)
+    log.info(
+        "Listening for %d hotkey(s): %s",
+        len(mapping),
+        ", ".join(f"{p.hotkey}->{p.id}" for p in profiles if p.hotkey),
+    )
+
+    if gn_transcribe.nvidia_dll_dirs():
+        log.info("Added NVIDIA DLL dirs for GPU: %s", ", ".join(gn_transcribe.nvidia_dll_dirs()))
+    else:
+        log.info("No NVIDIA DLL dirs added; using CPU unless cuBLAS/cuDNN are on PATH.")
+
+    load_model_async()
+
+    exit_code = app.exec()
+    manager.unregister()
+    if guard is not None:
+        guard.close()
+    return exit_code
+
+
+if __name__ == "__main__":
+    sys.exit(main())

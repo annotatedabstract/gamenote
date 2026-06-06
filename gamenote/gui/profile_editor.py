@@ -1,0 +1,176 @@
+"""Editor for a single profile: name, hotkey (with capture), destination root,
+path template (with a live preview of the resolved path), line format, and the
+session-header toggle. Edits are written back to the bound Profile live; the
+``changed`` signal lets the parent refresh the list and re-validate.
+"""
+
+from __future__ import annotations
+
+from datetime import datetime
+
+from PySide6.QtCore import Signal, Qt
+from PySide6.QtGui import QKeySequence
+from PySide6.QtWidgets import (
+    QWidget,
+    QFormLayout,
+    QLineEdit,
+    QPushButton,
+    QHBoxLayout,
+    QCheckBox,
+    QLabel,
+    QFileDialog,
+    QDialog,
+    QVBoxLayout,
+    QKeySequenceEdit,
+    QDialogButtonBox,
+)
+
+from ..profiles import Profile
+
+
+def qkeyseq_to_hotkey(seq: QKeySequence) -> str:
+    """Convert a Qt key sequence to the ``keyboard`` library's format
+    (lowercase, '+'-joined), e.g. 'Ctrl+Alt+N' -> 'ctrl+alt+n', 'F13' -> 'f13'.
+    Only the first chord is used."""
+    text = seq.toString(QKeySequence.PortableText)
+    if not text:
+        return ""
+    first = text.split(",")[0].strip()
+    return first.lower().replace("meta", "windows")
+
+
+class _CaptureDialog(QDialog):
+    def __init__(self, parent=None) -> None:
+        super().__init__(parent)
+        self.setWindowTitle("Capture hotkey")
+        self.edit = QKeySequenceEdit()
+        buttons = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
+        buttons.accepted.connect(self.accept)
+        buttons.rejected.connect(self.reject)
+        layout = QVBoxLayout(self)
+        layout.addWidget(QLabel("Press the key or combo (e.g. F13, or Ctrl+Alt+N):"))
+        layout.addWidget(self.edit)
+        layout.addWidget(buttons)
+
+    def hotkey(self) -> str:
+        return qkeyseq_to_hotkey(self.edit.keySequence())
+
+
+class ProfileEditor(QWidget):
+    changed = Signal()
+
+    def __init__(self, context_getter=None) -> None:
+        super().__init__()
+        self._profile: Profile | None = None
+        self._loading = False
+        self._context_getter = context_getter or (lambda: "")
+
+        self.name = QLineEdit()
+        self.hotkey = QLineEdit()
+        capture = QPushButton("Capture...")
+        capture.clicked.connect(self._capture_hotkey)
+        hk_row = QHBoxLayout()
+        hk_row.setContentsMargins(0, 0, 0, 0)
+        hk_row.addWidget(self.hotkey, 1)
+        hk_row.addWidget(capture)
+        hk_widget = QWidget()
+        hk_widget.setLayout(hk_row)
+
+        self.dest_root = QLineEdit()
+        browse = QPushButton("Browse...")
+        browse.clicked.connect(self._browse_root)
+        dr_row = QHBoxLayout()
+        dr_row.setContentsMargins(0, 0, 0, 0)
+        dr_row.addWidget(self.dest_root, 1)
+        dr_row.addWidget(browse)
+        dr_widget = QWidget()
+        dr_widget.setLayout(dr_row)
+
+        self.path_template = QLineEdit()
+        self.timestamp_format = QLineEdit()
+        self.prefix = QLineEdit()
+        self.use_session_headers = QCheckBox("Write a session header per day")
+        self.preview = QLabel("-")
+        self.preview.setWordWrap(True)
+        self.preview.setTextInteractionFlags(Qt.TextSelectableByMouse)
+        self.preview.setStyleSheet("color: #888;")
+
+        form = QFormLayout(self)
+        form.addRow("Name", self.name)
+        form.addRow("Hotkey", hk_widget)
+        form.addRow("Destination root", dr_widget)
+        form.addRow("Path template", self.path_template)
+        form.addRow("Timestamp format", self.timestamp_format)
+        form.addRow("Line prefix", self.prefix)
+        form.addRow("", self.use_session_headers)
+        form.addRow("Resolved path", self.preview)
+        tokens = QLabel("Tokens: {profile} {context} {date} {time}")
+        tokens.setStyleSheet("color: #888;")
+        form.addRow("", tokens)
+
+        self.name.textChanged.connect(self._on_edit)
+        self.hotkey.textChanged.connect(self._on_edit)
+        self.dest_root.textChanged.connect(self._on_edit)
+        self.path_template.textChanged.connect(self._on_edit)
+        self.timestamp_format.textChanged.connect(self._on_edit)
+        self.prefix.textChanged.connect(self._on_edit)
+        self.use_session_headers.toggled.connect(self._on_edit)
+
+        self.setEnabled(False)
+
+    def set_profile(self, profile: Profile | None) -> None:
+        self._profile = profile
+        self.setEnabled(profile is not None)
+        self._loading = True
+        if profile is not None:
+            self.name.setText(profile.name)
+            self.hotkey.setText(profile.hotkey)
+            self.dest_root.setText(profile.dest_root)
+            self.path_template.setText(profile.path_template)
+            self.timestamp_format.setText(profile.line_format.timestamp_format)
+            self.prefix.setText(profile.line_format.prefix)
+            self.use_session_headers.setChecked(profile.use_session_headers)
+        else:
+            for w in (self.name, self.hotkey, self.dest_root, self.path_template,
+                      self.timestamp_format, self.prefix):
+                w.clear()
+        self._loading = False
+        self._update_preview()
+
+    def _on_edit(self, *_args) -> None:
+        if self._loading or self._profile is None:
+            return
+        p = self._profile
+        p.name = self.name.text()
+        p.hotkey = self.hotkey.text().strip().lower()
+        p.dest_root = self.dest_root.text()
+        p.path_template = self.path_template.text()
+        p.line_format.timestamp_format = self.timestamp_format.text()
+        p.line_format.prefix = self.prefix.text()
+        p.use_session_headers = self.use_session_headers.isChecked()
+        self._update_preview()
+        self.changed.emit()
+
+    def _update_preview(self) -> None:
+        if self._profile is None:
+            self.preview.setText("-")
+            return
+        try:
+            context = self._context_getter()
+            path = self._profile.resolve_path(context, datetime.now())
+            self.preview.setText(str(path))
+        except Exception as e:
+            self.preview.setText(f"(invalid template: {e})")
+
+    def _capture_hotkey(self) -> None:
+        dialog = _CaptureDialog(self)
+        if dialog.exec() == QDialog.Accepted:
+            hk = dialog.hotkey()
+            if hk:
+                self.hotkey.setText(hk)
+
+    def _browse_root(self) -> None:
+        start = self.dest_root.text() or ""
+        chosen = QFileDialog.getExistingDirectory(self, "Choose destination root", start)
+        if chosen:
+            self.dest_root.setText(chosen)

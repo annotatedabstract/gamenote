@@ -1,0 +1,23 @@
+# Populated runtime config lives in %APPDATA%\gamenote, but never commit one if present
+config.json
+
+# Local Claude Code tooling config (personal, not for the repo)
+.claude/settings.local.json
+
+# Logs
+*.log
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+
+# PyInstaller build artifacts
+build/
+dist/
+*.spec.bak
+
+# Build-local model cache (downloaded by build.sh, bundled into dist; too large for git)
+packaging/model_cache/

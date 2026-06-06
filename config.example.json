@@ -1,0 +1,47 @@
+{
+  "version": 1,
+  "global": {
+    "model_size": "small.en",
+    "beam_size": 1,
+    "input_device": null,
+    "sample_rate": 16000,
+    "frame_ms": 30,
+    "silence_threshold": 0.02,
+    "silence_seconds": 1.5,
+    "start_grace_seconds": 3.0,
+    "min_seconds": 0.4,
+    "max_seconds": 60.0,
+    "overlay": { "enabled": true, "hide_ms": 2500 },
+    "context": { "value": "", "source": "manual", "file_path": "" },
+    "log_level": "INFO"
+  },
+  "profiles": [
+    {
+      "id": "editing",
+      "name": "Editing notes",
+      "hotkey": "alt+f1",
+      "dest_root": "C:\\Users\\you\\Documents\\gamenote",
+      "path_template": "{context}_notes.md",
+      "line_format": { "timestamp_format": "%Y-%m-%d %H:%M:%S", "prefix": "" },
+      "use_session_headers": true
+    },
+    {
+      "id": "bugs",
+      "name": "Bugs",
+      "hotkey": "alt+f2",
+      "dest_root": "C:\\Users\\you\\Documents\\gamenote",
+      "path_template": "bugs.md",
+      "line_format": { "timestamp_format": "%Y-%m-%d %H:%M:%S", "prefix": "[bug] " },
+      "use_session_headers": false
+    },
+    {
+      "id": "daily",
+      "name": "Daily log",
+      "hotkey": "alt+f3",
+      "dest_root": "C:\\Users\\you\\Documents\\gamenote",
+      "path_template": "{date}_log.md",
+      "line_format": { "timestamp_format": "%H:%M:%S", "prefix": "" },
+      "use_session_headers": false
+    }
+  ]
+}
