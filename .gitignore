@@ -21,3 +21,6 @@ dist/
 
 # Build-local model cache (downloaded by build.sh, bundled into dist; too large for git)
 packaging/model_cache/
+
+# Installer output (built by build-installer.sh)
+packaging/installer_output/

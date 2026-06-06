@@ -60,8 +60,14 @@ in this repo shows the shape. The log is at `%APPDATA%\gamenote\gamenote.log`.
 
 You do not need Python.
 
-1. Unzip the `gamenote` folder anywhere (for example `C:\Program Files\gamenote`
-   or your Desktop). Keep the folder intact; the exe needs the files beside it.
+Easiest: run the installer `gamenote-setup-<version>.exe` if one is provided. It
+installs per user (no admin needed), adds a Start menu shortcut, and offers
+optional desktop and "run at login" shortcuts. Then skip to step 3.
+
+Or, from the folder build:
+
+1. Unzip the `gamenote` folder anywhere (for example your Desktop). Keep the
+   folder intact; the exe needs the files beside it.
 2. Run `gamenote.exe`. It starts in the system tray (look for the icon near the
    clock). The tooltip shows "loading" then "ready" once the model is warm.
 3. Right click the tray icon to set the context, pause or resume hotkeys, open
@@ -130,6 +136,25 @@ Notes:
 - Expect to iterate `packaging/gamenote.spec` if a dependency's DLLs or data are
   not collected. Run the exe, read the log, adjust.
 
+## Building the installer (maintainer)
+
+Wraps `dist/gamenote` into a single `setup.exe` with shortcuts and an
+uninstaller, using Inno Setup.
+
+Prerequisite (one time): `winget install JRSoftware.InnoSetup`
+
+Build (Git Bash):
+
+```
+bash packaging/build-installer.sh
+```
+
+It builds the app first if needed, then compiles `packaging/installer.iss`. The
+installer lands in `packaging/installer_output/gamenote-setup-<version>.exe`. The
+installer is per user by default (no admin), with optional desktop and
+"run at login" shortcuts the user can tick during setup. Keep `MyAppVersion` in
+`packaging/installer.iss` in sync with `gamenote/__init__.py`.
+
 ## Running from source (development)
 
 ```
@@ -140,3 +165,7 @@ python main.pyw         # with a console, useful for logs
 
 For the GPU path from source, also `pip install nvidia-cublas-cu12 nvidia-cudnn-cu12`.
 The app tries CUDA at launch and falls back to CPU automatically.
+
+## License
+
+MIT. See `LICENSE`.
