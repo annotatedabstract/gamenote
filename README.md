@@ -155,6 +155,10 @@ installer is per user by default (no admin), with optional desktop and
 "run at login" shortcuts the user can tick during setup. Keep `MyAppVersion` in
 `packaging/installer.iss` in sync with `gamenote/__init__.py`.
 
+The installer (about 500 MB) is too large for the git repo, so distribute it as a
+GitHub Release asset, not a committed file. Tag a release and upload
+`gamenote-setup-<version>.exe` to it.
+
 ## Running from source (development)
 
 ```

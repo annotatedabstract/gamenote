@@ -21,7 +21,9 @@ ISCC=""
 for cand in \
   "$(command -v iscc 2>/dev/null || true)" \
   "/c/Program Files (x86)/Inno Setup 6/ISCC.exe" \
-  "/c/Program Files/Inno Setup 6/ISCC.exe"; do
+  "/c/Program Files/Inno Setup 6/ISCC.exe" \
+  "$HOME/AppData/Local/Programs/Inno Setup 6/ISCC.exe" \
+  "$LOCALAPPDATA/Programs/Inno Setup 6/ISCC.exe"; do
   if [ -n "$cand" ] && [ -f "$cand" ]; then ISCC="$cand"; break; fi
 done
 
