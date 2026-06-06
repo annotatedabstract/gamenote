@@ -6,6 +6,8 @@ transcribes locally and appends a timestamped line to a notes file. The app
 lives in the system tray, shows a small overlay that never steals focus from the
 game, and routes notes through switchable profiles.
 
+![gamenote demo](gamenote.gif)
+
 This is the standalone desktop version. It no longer depends on OBS. The older
 OBS based workflow is documented in `docs/gamenote-setup.md` and is now legacy.
 
