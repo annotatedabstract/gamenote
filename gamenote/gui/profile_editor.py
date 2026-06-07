@@ -23,8 +23,11 @@ from PySide6.QtWidgets import (
     QVBoxLayout,
     QKeySequenceEdit,
     QDialogButtonBox,
+    QFrame,
+    QMessageBox,
 )
 
+from .. import config as gn_config
 from ..profiles import Profile
 
 
@@ -89,7 +92,22 @@ class ProfileEditor(QWidget):
         self.path_template = QLineEdit()
         self.timestamp_format = QLineEdit()
         self.prefix = QLineEdit()
-        self.use_session_headers = QCheckBox("Write a session header per day")
+        self.use_session_headers = QCheckBox("Write session headers")
+
+        # Legacy: source the session header value from a .current_session file.
+        self.session_from_file = QCheckBox("Read session value from a file (legacy OBS .current_session)")
+        self.session_file = QLineEdit()
+        sf_browse = QPushButton("Browse...")
+        sf_browse.clicked.connect(self._browse_session_file)
+        sf_row = QHBoxLayout()
+        sf_row.setContentsMargins(0, 0, 0, 0)
+        sf_row.addWidget(self.session_file, 1)
+        sf_row.addWidget(sf_browse)
+        self.session_file_widget = QWidget()
+        self.session_file_widget.setLayout(sf_row)
+        self.session_hint = QLabel("Empty or missing file falls back to the date.")
+        self.session_hint.setStyleSheet("color: #888;")
+
         self.preview = QLabel("-")
         self.preview.setWordWrap(True)
         self.preview.setTextInteractionFlags(Qt.TextSelectableByMouse)
@@ -103,10 +121,21 @@ class ProfileEditor(QWidget):
         form.addRow("Timestamp format", self.timestamp_format)
         form.addRow("Line prefix", self.prefix)
         form.addRow("", self.use_session_headers)
+        form.addRow("", self.session_from_file)
+        form.addRow("Session file", self.session_file_widget)
+        form.addRow("", self.session_hint)
         form.addRow("Resolved path", self.preview)
         tokens = QLabel("Tokens: {profile} {context} {date} {time}")
         tokens.setStyleSheet("color: #888;")
         form.addRow("", tokens)
+
+        sep = QFrame()
+        sep.setFrameShape(QFrame.HLine)
+        sep.setStyleSheet("color: rgba(255,255,255,0.12);")
+        form.addRow(sep)
+        self.restore_btn = QPushButton("Restore profile defaults")
+        self.restore_btn.clicked.connect(self._restore_defaults)
+        form.addRow(self.restore_btn)
 
         self.name.textChanged.connect(self._on_edit)
         self.hotkey.textChanged.connect(self._on_edit)
@@ -115,6 +144,10 @@ class ProfileEditor(QWidget):
         self.timestamp_format.textChanged.connect(self._on_edit)
         self.prefix.textChanged.connect(self._on_edit)
         self.use_session_headers.toggled.connect(self._on_edit)
+        self.session_from_file.toggled.connect(self._on_edit)
+        self.session_file.textChanged.connect(self._on_edit)
+        self.use_session_headers.toggled.connect(self._sync_session_enable)
+        self.session_from_file.toggled.connect(self._sync_session_enable)
 
         self.setEnabled(False)
 
@@ -130,11 +163,14 @@ class ProfileEditor(QWidget):
             self.timestamp_format.setText(profile.line_format.timestamp_format)
             self.prefix.setText(profile.line_format.prefix)
             self.use_session_headers.setChecked(profile.use_session_headers)
+            self.session_from_file.setChecked(profile.session_from_file)
+            self.session_file.setText(profile.session_file)
         else:
             for w in (self.name, self.hotkey, self.dest_root, self.path_template,
-                      self.timestamp_format, self.prefix):
+                      self.timestamp_format, self.prefix, self.session_file):
                 w.clear()
         self._loading = False
+        self._sync_session_enable()
         self._update_preview()
 
     def _on_edit(self, *_args) -> None:
@@ -148,8 +184,17 @@ class ProfileEditor(QWidget):
         p.line_format.timestamp_format = self.timestamp_format.text()
         p.line_format.prefix = self.prefix.text()
         p.use_session_headers = self.use_session_headers.isChecked()
+        p.session_from_file = self.session_from_file.isChecked()
+        p.session_file = self.session_file.text().strip()
         self._update_preview()
         self.changed.emit()
+
+    def _sync_session_enable(self, *_args) -> None:
+        headers = self.use_session_headers.isChecked()
+        self.session_from_file.setEnabled(headers)
+        from_file = headers and self.session_from_file.isChecked()
+        self.session_file_widget.setEnabled(from_file)
+        self.session_hint.setEnabled(from_file)
 
     def _update_preview(self) -> None:
         if self._profile is None:
@@ -174,3 +219,41 @@ class ProfileEditor(QWidget):
         chosen = QFileDialog.getExistingDirectory(self, "Choose destination root", start)
         if chosen:
             self.dest_root.setText(chosen)
+
+    def _browse_session_file(self) -> None:
+        start = self.session_file.text() or ""
+        chosen, _ = QFileDialog.getOpenFileName(self, "Choose .current_session file", start)
+        if chosen:
+            self.session_file.setText(chosen)
+
+    def _restore_defaults(self) -> None:
+        if self._profile is None:
+            return
+        label = self._profile.name or self._profile.id
+        if QMessageBox.question(
+            self, "Restore profile defaults",
+            f"Reset '{label}' to its default settings?",
+        ) != QMessageBox.Yes:
+            return
+
+        defaults = gn_config.default_profile_dict(self._profile.id)
+        if defaults is not None:
+            src = Profile.from_dict(defaults)           # shipped profile: full reset
+            reset_identity = True
+        else:
+            src = Profile.from_dict(gn_config.default_config()["profiles"][0])
+            reset_identity = False                      # custom: keep name/hotkey
+
+        p = self._profile
+        if reset_identity:
+            p.name = src.name
+            p.hotkey = src.hotkey
+        p.dest_root = src.dest_root
+        p.path_template = src.path_template
+        p.line_format = src.line_format
+        p.use_session_headers = src.use_session_headers
+        p.session_from_file = src.session_from_file
+        p.session_file = src.session_file
+        # p.id is the profile's identity and is left unchanged.
+        self.set_profile(p)
+        self.changed.emit()

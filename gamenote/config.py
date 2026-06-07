@@ -102,6 +102,8 @@ DEFAULT_CONFIG: dict[str, Any] = {
             "path_template": "{context}_notes.md",
             "line_format": {"timestamp_format": "%Y-%m-%d %H:%M:%S", "prefix": ""},
             "use_session_headers": True,
+            "session_from_file": False,
+            "session_file": "",
         },
         {
             "id": "bugs",
@@ -111,6 +113,8 @@ DEFAULT_CONFIG: dict[str, Any] = {
             "path_template": "bugs.md",
             "line_format": {"timestamp_format": "%Y-%m-%d %H:%M:%S", "prefix": "[bug] "},
             "use_session_headers": False,
+            "session_from_file": False,
+            "session_file": "",
         },
         {
             "id": "daily",
@@ -120,6 +124,8 @@ DEFAULT_CONFIG: dict[str, Any] = {
             "path_template": "{date}_log.md",
             "line_format": {"timestamp_format": "%H:%M:%S", "prefix": ""},
             "use_session_headers": False,
+            "session_from_file": False,
+            "session_file": "",
         },
     ],
 }
@@ -159,6 +165,19 @@ def _merge_defaults(loaded: Any, defaults: Any) -> Any:
 
 def default_config() -> dict[str, Any]:
     return copy.deepcopy(DEFAULT_CONFIG)
+
+
+def default_global() -> dict[str, Any]:
+    return copy.deepcopy(DEFAULT_CONFIG["global"])
+
+
+def default_profile_dict(profile_id: str) -> dict[str, Any] | None:
+    """The shipped default profile with this id, or None for a custom profile.
+    Used by the settings 'restore defaults' button."""
+    for p in DEFAULT_CONFIG["profiles"]:
+        if p["id"] == profile_id:
+            return copy.deepcopy(p)
+    return None
 
 
 def save_config(cfg: dict[str, Any]) -> None:

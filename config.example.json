@@ -23,7 +23,9 @@
       "dest_root": "C:\\Users\\you\\Documents\\gamenote",
       "path_template": "{context}_notes.md",
       "line_format": { "timestamp_format": "%Y-%m-%d %H:%M:%S", "prefix": "" },
-      "use_session_headers": true
+      "use_session_headers": true,
+      "session_from_file": false,
+      "session_file": ""
     },
     {
       "id": "bugs",
@@ -32,7 +34,9 @@
       "dest_root": "C:\\Users\\you\\Documents\\gamenote",
       "path_template": "bugs.md",
       "line_format": { "timestamp_format": "%Y-%m-%d %H:%M:%S", "prefix": "[bug] " },
-      "use_session_headers": false
+      "use_session_headers": false,
+      "session_from_file": false,
+      "session_file": ""
     },
     {
       "id": "daily",
@@ -41,7 +45,9 @@
       "dest_root": "C:\\Users\\you\\Documents\\gamenote",
       "path_template": "{date}_log.md",
       "line_format": { "timestamp_format": "%H:%M:%S", "prefix": "" },
-      "use_session_headers": false
+      "use_session_headers": false,
+      "session_from_file": false,
+      "session_file": ""
     }
   ]
 }

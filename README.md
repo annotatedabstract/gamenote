@@ -51,6 +51,9 @@ Examples (with the default root):
 - With session headers enabled, a `## Recording session: YYYY-MM-DD` header is
   written when the file is new or the date changed. Disable headers for a flat
   append.
+- Optional (legacy, OBS): a profile can instead read the session value from a
+  `.current_session` file, so the header carries the recording's start time. See
+  `integrations/obs/` for the small OBS script and setup.
 
 ## Config
 

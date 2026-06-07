@@ -55,6 +55,10 @@ class Profile:
     path_template: str
     line_format: LineFormat = field(default_factory=LineFormat)
     use_session_headers: bool = True
+    # Legacy option: source the session-header value from a .current_session file
+    # (written by OBS) instead of the date. Off by default.
+    session_from_file: bool = False
+    session_file: str = ""
 
     @classmethod
     def from_dict(cls, d: dict[str, Any]) -> "Profile":
@@ -66,6 +70,8 @@ class Profile:
             path_template=str(d.get("path_template", "")),
             line_format=LineFormat.from_dict(d.get("line_format")),
             use_session_headers=bool(d.get("use_session_headers", True)),
+            session_from_file=bool(d.get("session_from_file", False)),
+            session_file=str(d.get("session_file", "")),
         )
 
     def to_dict(self) -> dict[str, Any]:
@@ -77,6 +83,8 @@ class Profile:
             "path_template": self.path_template,
             "line_format": self.line_format.to_dict(),
             "use_session_headers": self.use_session_headers,
+            "session_from_file": self.session_from_file,
+            "session_file": self.session_file,
         }
 
     # --- resolution -------------------------------------------------------
@@ -107,6 +115,20 @@ class Profile:
         now = now or datetime.now()
         ts = now.strftime(self.line_format.timestamp_format)
         return f"- [{ts}] {self.line_format.prefix}{text}\n"
+
+    def session_header_value(self, now: datetime | None = None) -> str:
+        """The value for the ``## Recording session:`` header. When the legacy
+        file option is on, read it from the ``.current_session`` file (falling
+        back to the date if the file is missing or empty). Otherwise the date."""
+        now = now or datetime.now()
+        if self.session_from_file and self.session_file:
+            try:
+                val = Path(self.session_file).read_text(encoding="utf-8").strip()
+                if val:
+                    return val
+            except OSError:
+                pass
+        return now.strftime("%Y-%m-%d")
 
 
 def profiles_from_config(cfg: dict[str, Any]) -> list[Profile]:

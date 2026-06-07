@@ -4,6 +4,10 @@ config.json
 # Local Claude Code tooling config (personal, not for the repo)
 .claude/settings.local.json
 
+# Personal OBS workflow script (machine-specific paths; the generic trimmed
+# version lives in integrations/obs/gamenote-session.lua)
+make_postprocess_bat.lua
+
 # Logs
 *.log
 

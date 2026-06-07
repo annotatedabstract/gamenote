@@ -32,10 +32,11 @@ from PySide6.QtWidgets import (
     QScrollArea,
     QGroupBox,
     QMessageBox,
+    QFrame,
 )
 
 from .. import audio as gn_audio
-from ..config import default_config
+from ..config import default_config, default_global
 from ..profiles import Profile, profiles_from_config, validate_profiles
 from .profile_editor import ProfileEditor
 from .mic_meter import MicMeter
@@ -204,6 +205,14 @@ class SettingsWindow(QDialog):
             layout.addWidget(box)
         layout.addStretch(1)
 
+        sep = QFrame()
+        sep.setFrameShape(QFrame.HLine)
+        sep.setStyleSheet("color: rgba(255,255,255,0.12);")
+        layout.addWidget(sep)
+        self.restore_global_btn = QPushButton("Restore global defaults")
+        self.restore_global_btn.clicked.connect(self._restore_global_defaults)
+        layout.addWidget(self.restore_global_btn)
+
         scroll = QScrollArea()
         scroll.setWidgetResizable(True)
         scroll.setWidget(inner)
@@ -230,7 +239,17 @@ class SettingsWindow(QDialog):
         return scroll
 
     def _load_global(self) -> None:
-        g = self.cfg["global"]
+        self._populate_global(self.cfg["global"])
+
+    def _restore_global_defaults(self) -> None:
+        if QMessageBox.question(
+            self, "Restore global defaults",
+            "Reset all global settings to their defaults?",
+        ) != QMessageBox.Yes:
+            return
+        self._populate_global(default_global())
+
+    def _populate_global(self, g: dict) -> None:
         ctx = g.get("context", {})
         self.context_value.setText(str(ctx.get("value", "")))
         from_file = ctx.get("source", "manual") == "file"

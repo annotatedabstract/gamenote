@@ -65,7 +65,7 @@ def append_note(
     need_header = False
     header_value = ""
     if profile.use_session_headers:
-        header_value = now.strftime("%Y-%m-%d")
+        header_value = profile.session_header_value(now)
         need_header = new_file or (last_session_in_file(path) != header_value)
 
     with open(path, "a", encoding="utf-8") as f:
