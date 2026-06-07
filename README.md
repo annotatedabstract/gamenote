@@ -172,6 +172,12 @@ python main.pyw         # with a console, useful for logs
 For the GPU path from source, also `pip install nvidia-cublas-cu12 nvidia-cudnn-cu12`.
 The app tries CUDA at launch and falls back to CPU automatically.
 
+## Support
+
+gamenote is free and stays that way. If it has saved you an editing session and
+you feel like it, there is a Ko-fi: https://ko-fi.com/annotatedabstract. Entirely
+optional, and never required to use anything here.
+
 ## License
 
 MIT. See `LICENSE`.
