@@ -91,6 +91,7 @@ DEFAULT_CONFIG: dict[str, Any] = {
         "max_seconds": 60.0,
         "overlay": {"enabled": True, "hide_ms": 2500},
         "launch_sound": True,
+        "auto_update": True,
         "context": {"value": "", "source": "manual", "file_path": ""},
         "log_level": "INFO",
     },

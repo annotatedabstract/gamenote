@@ -11,7 +11,7 @@ import logging
 from typing import Callable
 
 from PySide6.QtCore import QObject, Slot
-from PySide6.QtGui import QIcon, QAction
+from PySide6.QtGui import QIcon, QAction, QCursor
 from PySide6.QtWidgets import QSystemTrayIcon, QMenu, QInputDialog
 
 from .controller import Controller
@@ -31,6 +31,8 @@ class Tray(QObject):
         on_open_settings: Callable[[], None],
         on_quit: Callable[[], None],
         save_config: Callable[[], None],
+        on_check_updates: Callable[[], None] | None = None,
+        on_install_update: Callable[[], None] | None = None,
         parent: QObject | None = None,
     ) -> None:
         super().__init__(parent)
@@ -39,6 +41,9 @@ class Tray(QObject):
         self.on_open_settings = on_open_settings
         self.on_quit = on_quit
         self.save_config = save_config
+        self.on_check_updates = on_check_updates
+        self.on_install_update = on_install_update
+        self.update_version: str | None = None
 
         self.status = "loading"
         self.recent: list[str] = []
@@ -54,6 +59,17 @@ class Tray(QObject):
         self.tray.show()
 
         controller.status_changed.connect(self.set_status)
+        self.tray.activated.connect(self._on_activated)
+
+    @Slot(QSystemTrayIcon.ActivationReason)
+    def _on_activated(self, reason: QSystemTrayIcon.ActivationReason) -> None:
+        # Left-click (Trigger) and double-click also open the menu; right-click
+        # uses Qt's built-in context menu.
+        if reason in (
+            QSystemTrayIcon.ActivationReason.Trigger,
+            QSystemTrayIcon.ActivationReason.DoubleClick,
+        ):
+            self.menu.popup(QCursor.pos())
 
     # --- menu --------------------------------------------------------------
 
@@ -64,6 +80,12 @@ class Tray(QObject):
         header.setEnabled(False)
         self.menu.addAction(header)
         self.menu.addSeparator()
+
+        if self.update_version and self.on_install_update is not None:
+            update = QAction(f"Install update ({self.update_version})", self.menu)
+            update.triggered.connect(lambda: self.on_install_update())
+            self.menu.addAction(update)
+            self.menu.addSeparator()
 
         context_menu = self.menu.addMenu("Set context")
         current = self.controller.current_context()
@@ -91,6 +113,11 @@ class Tray(QObject):
         settings = QAction("Settings...", self.menu)
         settings.triggered.connect(lambda: self.on_open_settings())
         self.menu.addAction(settings)
+
+        if self.on_check_updates is not None:
+            check = QAction("Check for updates...", self.menu)
+            check.triggered.connect(lambda: self.on_check_updates())
+            self.menu.addAction(check)
 
         self.menu.addSeparator()
         quit_action = QAction("Quit", self.menu)
@@ -140,6 +167,11 @@ class Tray(QObject):
         """Rebuild the menu and tooltip, e.g. after settings were applied."""
         self._build_menu()
         self._refresh_tooltip()
+
+    def set_update_available(self, version: str | None) -> None:
+        """Show or clear the 'Install update' menu entry."""
+        self.update_version = version
+        self._build_menu()
 
     def show_message(self, title: str, message: str) -> None:
         self.tray.showMessage(title, message, self.tray.icon())

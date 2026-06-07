@@ -35,7 +35,7 @@ _C_ERROR = "#ffb3b3"
 
 
 class Controller(QObject):
-    overlay_message = Signal(str, str, bool)  # text, color, persistent
+    overlay_message = Signal(str, str, bool, str)  # text, color, persistent, indicator
     launch_message = Signal(str, str)         # text, color (large launch-time variant)
     status_changed = Signal(str)              # short status for the tray tooltip
     trigger = Signal(str)                     # profile id, emitted from the hotkey thread
@@ -63,19 +63,19 @@ class Controller(QObject):
             return
 
         if not self.transcriber.ready:
-            self.overlay_message.emit("loading...", _C_WARN, False)
+            self.overlay_message.emit("loading...", _C_WARN, False, "none")
             return
 
         with self.lock:
             if self.is_recording:
-                self.overlay_message.emit("busy...", _C_WARN, False)
+                self.overlay_message.emit("busy...", _C_WARN, False, "none")
                 return
             self.is_recording = True
             self.stop_event.clear()
 
         if self.profiles[profile_id].hotkey_beep:
             gn_sounds.play_hotkey_beep()
-        self.overlay_message.emit("listening", _C_LISTENING, True)
+        self.overlay_message.emit("listening", _C_LISTENING, True, "dot")
         threading.Thread(
             target=self._worker, args=(profile_id,), daemon=True
         ).start()
@@ -87,21 +87,21 @@ class Controller(QObject):
             profile = self.profiles[profile_id]
             audio = gn_audio.record(self.stop_event, self._global, debug=self.debug)
             if audio is None:
-                self.overlay_message.emit("(no note)", _C_MUTED, False)
+                self.overlay_message.emit("(no note)", _C_MUTED, False, "none")
                 return
             text = self.transcriber.transcribe(audio)
             if not text:
-                self.overlay_message.emit("(no speech)", _C_MUTED, False)
+                self.overlay_message.emit("(no speech)", _C_MUTED, False, "none")
                 return
             context = gn_profiles.read_context(self._global["context"])
             gn_notes.append_note(profile, context, text)
             preview = text if len(text) <= 48 else text[:45] + "..."
-            self.overlay_message.emit("saved: " + preview, _C_SAVED, False)
+            self.overlay_message.emit("saved: " + preview, _C_SAVED, False, "check")
         except gn_audio.AudioCaptureError:
-            self.overlay_message.emit("mic error", _C_ERROR, False)
+            self.overlay_message.emit("mic error", _C_ERROR, False, "none")
         except Exception as e:
             log.error("Note worker failed: %s", e)
-            self.overlay_message.emit("error", _C_ERROR, False)
+            self.overlay_message.emit("error", _C_ERROR, False, "none")
         finally:
             with self.lock:
                 self.is_recording = False

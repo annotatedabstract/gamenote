@@ -13,6 +13,7 @@
     "max_seconds": 60.0,
     "overlay": { "enabled": true, "hide_ms": 2500 },
     "launch_sound": true,
+    "auto_update": true,
     "context": { "value": "", "source": "manual", "file_path": "" },
     "log_level": "INFO"
   },

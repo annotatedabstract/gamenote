@@ -153,6 +153,8 @@ class SettingsWindow(QDialog):
 
         self.launch_sound = QCheckBox("Play an arming sound when ready")
 
+        self.auto_update = QCheckBox("Automatically check for updates on launch")
+
         self.log_level = QComboBox()
         self.log_level.addItems(_LOG_LEVELS)
 
@@ -204,13 +206,21 @@ class SettingsWindow(QDialog):
         snote.setStyleSheet("color: #888;")
         sform.addRow("", snote)
 
+        updates_box = QGroupBox("Updates")
+        uform = QFormLayout(updates_box)
+        uform.addRow("", self.auto_update)
+        unote = QLabel("Checks GitHub Releases. Installing downloads the installer (~500 MB).")
+        unote.setStyleSheet("color: #888;")
+        uform.addRow("", unote)
+
         misc_box = QGroupBox("Logging")
         miform = QFormLayout(misc_box)
         miform.addRow("Log level", self.log_level)
 
         inner = QWidget()
         layout = QVBoxLayout(inner)
-        for box in (context_box, model_box, audio_box, vad_box, overlay_box, sounds_box, misc_box):
+        for box in (context_box, model_box, audio_box, vad_box, overlay_box,
+                    sounds_box, updates_box, misc_box):
             layout.addWidget(box)
         layout.addStretch(1)
 
@@ -285,6 +295,7 @@ class SettingsWindow(QDialog):
         self.overlay_enabled.setChecked(bool(overlay.get("enabled", True)))
         self.overlay_hide_ms.setValue(int(overlay.get("hide_ms", 2500)))
         self.launch_sound.setChecked(bool(g.get("launch_sound", True)))
+        self.auto_update.setChecked(bool(g.get("auto_update", True)))
         self.log_level.setCurrentText(str(g.get("log_level", "INFO")))
 
         self.mic_meter.set_threshold(self.silence_threshold.value())
@@ -315,6 +326,7 @@ class SettingsWindow(QDialog):
                 "hide_ms": self.overlay_hide_ms.value(),
             },
             "launch_sound": self.launch_sound.isChecked(),
+            "auto_update": self.auto_update.isChecked(),
             "context": {
                 "value": self.context_value.text().strip(),
                 "source": source,

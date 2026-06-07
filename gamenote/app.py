@@ -11,6 +11,7 @@ import sys
 import socket
 import logging
 import threading
+import webbrowser
 from pathlib import Path
 
 from PySide6.QtCore import Qt
@@ -22,6 +23,7 @@ from . import profiles as gn_profiles
 from . import hotkeys as gn_hotkeys
 from . import transcribe as gn_transcribe
 from . import sounds as gn_sounds
+from . import updater as gn_updater
 from .controller import Controller
 from .overlay import Overlay
 from .tray import Tray
@@ -201,6 +203,49 @@ def main() -> int:
         manager.unregister()
         app.quit()
 
+    # --- updates ----------------------------------------------------------
+    updater = gn_updater.Updater()
+    pending_update: dict = {"info": None}
+
+    def do_check(manual: bool = False) -> None:
+        updater.check_async(manual)
+
+    def on_update_available(info) -> None:
+        pending_update["info"] = info
+        tray.set_update_available(info.version)
+        tray.show_message(
+            "gamenote update available",
+            f"Version {info.version} is available. Open the menu to install.",
+        )
+
+    def on_up_to_date(manual: bool) -> None:
+        if manual:
+            tray.show_message("gamenote", "You are on the latest version.")
+
+    def on_update_failed(manual: bool, message: str) -> None:
+        log.info("Update flow problem: %s", message)
+        if manual:
+            tray.show_message("gamenote", "Could not check for updates.")
+
+    def on_progress(done: int, total: int) -> None:
+        pct = int(done * 100 / total) if total else 0
+        tray.tray.setToolTip(f"gamenote - downloading update {pct}%")
+
+    def on_ready(path: str) -> None:
+        tray.show_message("gamenote", "Update downloaded. Installing now...")
+        gn_updater.run_installer(path)
+        quit_app()
+
+    def on_install_update() -> None:
+        info = pending_update.get("info")
+        if info is None:
+            return
+        if not gn_updater.is_frozen():
+            webbrowser.open(gn_updater.RELEASES_URL)
+            return
+        tray.show_message("gamenote", f"Downloading update {info.version} (~500 MB)...")
+        updater.download_async(info)
+
     tray = Tray(
         icon=icon,
         controller=controller,
@@ -208,7 +253,15 @@ def main() -> int:
         on_open_settings=open_settings,
         on_quit=quit_app,
         save_config=lambda: gn_config.save_config(cfg),
+        on_check_updates=lambda: do_check(manual=True),
+        on_install_update=on_install_update,
     )
+
+    updater.available.connect(on_update_available, Qt.QueuedConnection)
+    updater.up_to_date.connect(on_up_to_date, Qt.QueuedConnection)
+    updater.failed.connect(on_update_failed, Qt.QueuedConnection)
+    updater.progress.connect(on_progress, Qt.QueuedConnection)
+    updater.ready.connect(on_ready, Qt.QueuedConnection)
 
     # Register hotkeys now; presses are ignored with a "loading" overlay until
     # the model is ready.
@@ -227,6 +280,9 @@ def main() -> int:
         log.info("No NVIDIA DLL dirs added; using CPU unless cuBLAS/cuDNN are on PATH.")
 
     load_model_async()
+
+    if gn_updater.is_frozen() and bool(global_cfg.get("auto_update", True)):
+        do_check(manual=False)
 
     exit_code = app.exec()
     manager.unregister()
