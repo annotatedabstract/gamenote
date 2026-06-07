@@ -21,6 +21,7 @@ from PySide6.QtCore import QObject, Signal, Slot, Qt
 from . import audio as gn_audio
 from . import notes as gn_notes
 from . import profiles as gn_profiles
+from . import sounds as gn_sounds
 from .transcribe import Transcriber
 
 log = logging.getLogger("gamenote.controller")
@@ -35,6 +36,7 @@ _C_ERROR = "#ffb3b3"
 
 class Controller(QObject):
     overlay_message = Signal(str, str, bool)  # text, color, persistent
+    launch_message = Signal(str, str)         # text, color (large launch-time variant)
     status_changed = Signal(str)              # short status for the tray tooltip
     trigger = Signal(str)                     # profile id, emitted from the hotkey thread
 
@@ -71,6 +73,8 @@ class Controller(QObject):
             self.is_recording = True
             self.stop_event.clear()
 
+        if self.profiles[profile_id].hotkey_beep:
+            gn_sounds.play_hotkey_beep()
         self.overlay_message.emit("listening", _C_LISTENING, True)
         threading.Thread(
             target=self._worker, args=(profile_id,), daemon=True

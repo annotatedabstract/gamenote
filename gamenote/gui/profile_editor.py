@@ -108,6 +108,8 @@ class ProfileEditor(QWidget):
         self.session_hint = QLabel("Empty or missing file falls back to the date.")
         self.session_hint.setStyleSheet("color: #888;")
 
+        self.hotkey_beep = QCheckBox("Beep when this profile's hotkey fires")
+
         self.preview = QLabel("-")
         self.preview.setWordWrap(True)
         self.preview.setTextInteractionFlags(Qt.TextSelectableByMouse)
@@ -124,6 +126,7 @@ class ProfileEditor(QWidget):
         form.addRow("", self.session_from_file)
         form.addRow("Session file", self.session_file_widget)
         form.addRow("", self.session_hint)
+        form.addRow("", self.hotkey_beep)
         form.addRow("Resolved path", self.preview)
         tokens = QLabel("Tokens: {profile} {context} {date} {time}")
         tokens.setStyleSheet("color: #888;")
@@ -146,6 +149,7 @@ class ProfileEditor(QWidget):
         self.use_session_headers.toggled.connect(self._on_edit)
         self.session_from_file.toggled.connect(self._on_edit)
         self.session_file.textChanged.connect(self._on_edit)
+        self.hotkey_beep.toggled.connect(self._on_edit)
         self.use_session_headers.toggled.connect(self._sync_session_enable)
         self.session_from_file.toggled.connect(self._sync_session_enable)
 
@@ -165,6 +169,7 @@ class ProfileEditor(QWidget):
             self.use_session_headers.setChecked(profile.use_session_headers)
             self.session_from_file.setChecked(profile.session_from_file)
             self.session_file.setText(profile.session_file)
+            self.hotkey_beep.setChecked(profile.hotkey_beep)
         else:
             for w in (self.name, self.hotkey, self.dest_root, self.path_template,
                       self.timestamp_format, self.prefix, self.session_file):
@@ -186,6 +191,7 @@ class ProfileEditor(QWidget):
         p.use_session_headers = self.use_session_headers.isChecked()
         p.session_from_file = self.session_from_file.isChecked()
         p.session_file = self.session_file.text().strip()
+        p.hotkey_beep = self.hotkey_beep.isChecked()
         self._update_preview()
         self.changed.emit()
 
@@ -254,6 +260,7 @@ class ProfileEditor(QWidget):
         p.use_session_headers = src.use_session_headers
         p.session_from_file = src.session_from_file
         p.session_file = src.session_file
+        p.hotkey_beep = src.hotkey_beep
         # p.id is the profile's identity and is left unchanged.
         self.set_profile(p)
         self.changed.emit()

@@ -151,6 +151,8 @@ class SettingsWindow(QDialog):
         self.overlay_hide_ms.setRange(500, 15000)
         self.overlay_hide_ms.setSingleStep(250)
 
+        self.launch_sound = QCheckBox("Play an arming sound when ready")
+
         self.log_level = QComboBox()
         self.log_level.addItems(_LOG_LEVELS)
 
@@ -195,13 +197,20 @@ class SettingsWindow(QDialog):
         oform.addRow("", self.overlay_enabled)
         oform.addRow("Hide after (ms)", self.overlay_hide_ms)
 
+        sounds_box = QGroupBox("Sounds")
+        sform = QFormLayout(sounds_box)
+        sform.addRow("", self.launch_sound)
+        snote = QLabel("The per-hotkey beep is set on each profile.")
+        snote.setStyleSheet("color: #888;")
+        sform.addRow("", snote)
+
         misc_box = QGroupBox("Logging")
         miform = QFormLayout(misc_box)
         miform.addRow("Log level", self.log_level)
 
         inner = QWidget()
         layout = QVBoxLayout(inner)
-        for box in (context_box, model_box, audio_box, vad_box, overlay_box, misc_box):
+        for box in (context_box, model_box, audio_box, vad_box, overlay_box, sounds_box, misc_box):
             layout.addWidget(box)
         layout.addStretch(1)
 
@@ -275,6 +284,7 @@ class SettingsWindow(QDialog):
         overlay = g.get("overlay", {})
         self.overlay_enabled.setChecked(bool(overlay.get("enabled", True)))
         self.overlay_hide_ms.setValue(int(overlay.get("hide_ms", 2500)))
+        self.launch_sound.setChecked(bool(g.get("launch_sound", True)))
         self.log_level.setCurrentText(str(g.get("log_level", "INFO")))
 
         self.mic_meter.set_threshold(self.silence_threshold.value())
@@ -304,6 +314,7 @@ class SettingsWindow(QDialog):
                 "enabled": self.overlay_enabled.isChecked(),
                 "hide_ms": self.overlay_hide_ms.value(),
             },
+            "launch_sound": self.launch_sound.isChecked(),
             "context": {
                 "value": self.context_value.text().strip(),
                 "source": source,

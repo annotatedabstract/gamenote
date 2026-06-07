@@ -59,6 +59,8 @@ class Profile:
     # (written by OBS) instead of the date. Off by default.
     session_from_file: bool = False
     session_file: str = ""
+    # Play the subtle beep when this profile's hotkey fires. On by default.
+    hotkey_beep: bool = True
 
     @classmethod
     def from_dict(cls, d: dict[str, Any]) -> "Profile":
@@ -72,6 +74,7 @@ class Profile:
             use_session_headers=bool(d.get("use_session_headers", True)),
             session_from_file=bool(d.get("session_from_file", False)),
             session_file=str(d.get("session_file", "")),
+            hotkey_beep=bool(d.get("hotkey_beep", True)),
         )
 
     def to_dict(self) -> dict[str, Any]:
@@ -85,6 +88,7 @@ class Profile:
             "use_session_headers": self.use_session_headers,
             "session_from_file": self.session_from_file,
             "session_file": self.session_file,
+            "hotkey_beep": self.hotkey_beep,
         }
 
     # --- resolution -------------------------------------------------------

@@ -21,6 +21,7 @@ from . import config as gn_config
 from . import profiles as gn_profiles
 from . import hotkeys as gn_hotkeys
 from . import transcribe as gn_transcribe
+from . import sounds as gn_sounds
 from .controller import Controller
 from .overlay import Overlay
 from .tray import Tray
@@ -125,12 +126,17 @@ def main() -> int:
     def set_overlay_enabled(enabled: bool) -> None:
         if enabled and not overlay_state["connected"]:
             controller.overlay_message.connect(overlay.show_message, Qt.QueuedConnection)
+            controller.launch_message.connect(overlay.show_launch, Qt.QueuedConnection)
             overlay_state["connected"] = True
         elif not enabled and overlay_state["connected"]:
-            try:
-                controller.overlay_message.disconnect(overlay.show_message)
-            except (RuntimeError, TypeError):
-                pass
+            for signal, slot in (
+                (controller.overlay_message, overlay.show_message),
+                (controller.launch_message, overlay.show_launch),
+            ):
+                try:
+                    signal.disconnect(slot)
+                except (RuntimeError, TypeError):
+                    pass
             overlay_state["connected"] = False
 
     set_overlay_enabled(bool(global_cfg["overlay"]["enabled"]))
@@ -144,11 +150,13 @@ def main() -> int:
                 controller.status_changed.emit("loading")
                 device = transcriber.load()
                 controller.status_changed.emit(f"ready ({device})")
-                controller.overlay_message.emit("gamenote ready", "#cfe8ff", False)
+                controller.launch_message.emit("gamenote ready", "#cfe8ff")
+                if bool(global_cfg.get("launch_sound", True)):
+                    gn_sounds.play_arming()
             except Exception as e:
                 log.error("Model load failed: %s", e)
                 controller.status_changed.emit("model error")
-                controller.overlay_message.emit("model load failed", "#ffb3b3", False)
+                controller.launch_message.emit("model load failed", "#ffb3b3")
         threading.Thread(target=run, daemon=True).start()
 
     def on_apply(new_profiles: list) -> None:

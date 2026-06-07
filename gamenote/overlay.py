@@ -54,15 +54,20 @@ class Overlay(QWidget):
         self.winId()
         self._apply_noactivate()
 
-    def _set_style(self, fg: str) -> None:
+    def _set_style(self, fg: str, large: bool = False) -> None:
+        size = 24 if large else 12       # launch messages ~2x for visibility
+        weight = 600 if large else 400
+        padding = "12px 22px" if large else "8px 14px"
+        radius = 10 if large else 6
         self._label.setStyleSheet(
             "QLabel {"
             f" color: {fg};"
             " background-color: #1e1e1e;"
             " font-family: 'Segoe UI';"
-            " font-size: 12pt;"
-            " padding: 8px 14px;"
-            " border-radius: 6px;"
+            f" font-size: {size}pt;"
+            f" font-weight: {weight};"
+            f" padding: {padding};"
+            f" border-radius: {radius}px;"
             "}"
         )
 
@@ -94,9 +99,8 @@ class Overlay(QWidget):
         y = geo.top() + _MARGIN
         self.move(x, y)
 
-    @Slot(str, str, bool)
-    def show_message(self, text: str, color: str = "#ffffff", persistent: bool = False) -> None:
-        self._set_style(color)
+    def _show(self, text: str, color: str, persistent: bool, large: bool) -> None:
+        self._set_style(color, large)
         self._label.setText(text)
         self._reposition()
         self._hide_timer.stop()
@@ -107,3 +111,12 @@ class Overlay(QWidget):
         self._apply_noactivate()
         if not persistent:
             self._hide_timer.start(self.hide_ms)
+
+    @Slot(str, str, bool)
+    def show_message(self, text: str, color: str = "#ffffff", persistent: bool = False) -> None:
+        self._show(text, color, persistent, large=False)
+
+    @Slot(str, str)
+    def show_launch(self, text: str, color: str = "#ffffff") -> None:
+        """A larger, more noticeable variant for launch-time confirmations."""
+        self._show(text, color, persistent=False, large=True)

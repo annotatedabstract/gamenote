@@ -90,6 +90,7 @@ DEFAULT_CONFIG: dict[str, Any] = {
         "min_seconds": 0.4,
         "max_seconds": 60.0,
         "overlay": {"enabled": True, "hide_ms": 2500},
+        "launch_sound": True,
         "context": {"value": "", "source": "manual", "file_path": ""},
         "log_level": "INFO",
     },
@@ -104,6 +105,7 @@ DEFAULT_CONFIG: dict[str, Any] = {
             "use_session_headers": True,
             "session_from_file": False,
             "session_file": "",
+            "hotkey_beep": True,
         },
         {
             "id": "bugs",
@@ -115,6 +117,7 @@ DEFAULT_CONFIG: dict[str, Any] = {
             "use_session_headers": False,
             "session_from_file": False,
             "session_file": "",
+            "hotkey_beep": True,
         },
         {
             "id": "daily",
@@ -126,6 +129,7 @@ DEFAULT_CONFIG: dict[str, Any] = {
             "use_session_headers": False,
             "session_from_file": False,
             "session_file": "",
+            "hotkey_beep": True,
         },
     ],
 }
