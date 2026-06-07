@@ -1,0 +1,634 @@
+<!DOCTYPE html>
+<!--
+  gamenote landing page (single self-contained file; served by GitHub Pages from /docs).
+  Download buttons -> latest GitHub release. GitHub links -> the repo.
+  Fonts load from Google Fonts; everything else is inline.
+-->
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>gamenote — mark the moment while you play</title>
+<meta name="description" content="Hands-free voice notes for gameplay recording. Tap a key, speak, keep playing. Every note is timestamped to line up with your footage, so editing starts at the exact frame.">
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,700;12..96,800&family=Hanken+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+
+<style>
+  :root{
+    --bg:#0b0c0f;
+    --bg-2:#0d0f13;
+    --surface:#14171e;
+    --surface-2:#181c26;
+    --line:rgba(255,255,255,.08);
+    --line-2:rgba(255,255,255,.14);
+    --ink:#f5f2ea;
+    --ink-dim:#b9bec9;
+    --ink-faint:#878d9b;
+    --amber:#ffb02e;
+    --amber-deep:#f5900f;
+    --amber-soft:rgba(255,176,46,.13);
+    --teal:#57c9d6;
+    --teal-soft:rgba(87,201,214,.12);
+    --rec:#ff5a52;
+    --radius:16px;
+    --maxw:1140px;
+    --font-display:"Bricolage Grotesque","Hanken Grotesk",sans-serif;
+    --font-body:"Hanken Grotesk",ui-sans-serif,system-ui,sans-serif;
+    --font-mono:"JetBrains Mono",ui-monospace,SFMono-Regular,monospace;
+  }
+
+  *{box-sizing:border-box;margin:0;padding:0}
+  html{scroll-behavior:smooth;-webkit-text-size-adjust:100%}
+  body{
+    background:var(--bg);
+    color:var(--ink-dim);
+    font-family:var(--font-body);
+    font-size:17px;
+    line-height:1.6;
+    -webkit-font-smoothing:antialiased;
+    text-rendering:optimizeLegibility;
+    overflow-x:hidden;
+    position:relative;
+  }
+
+  /* ---- background atmosphere ---- */
+  body::before{
+    content:"";position:fixed;inset:0;z-index:-2;
+    background:
+      radial-gradient(900px 600px at 82% -8%, rgba(255,176,46,.16), transparent 60%),
+      radial-gradient(800px 700px at 8% 12%, rgba(87,201,214,.08), transparent 55%),
+      linear-gradient(180deg,#0c0e12 0%, var(--bg) 40%);
+  }
+  body::after{
+    content:"";position:fixed;inset:0;z-index:-1;opacity:.35;pointer-events:none;
+    background-image:
+      linear-gradient(rgba(255,255,255,.022) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(255,255,255,.022) 1px, transparent 1px);
+    background-size:46px 46px;
+    -webkit-mask-image:radial-gradient(120% 90% at 50% 0%, #000 35%, transparent 80%);
+            mask-image:radial-gradient(120% 90% at 50% 0%, #000 35%, transparent 80%);
+  }
+
+  a{color:inherit;text-decoration:none}
+  ::selection{background:var(--amber);color:#11130f}
+
+  .wrap{max-width:var(--maxw);margin:0 auto;padding:0 28px}
+  .mono{font-family:var(--font-mono)}
+
+  /* ---- header ---- */
+  header{
+    position:sticky;top:0;z-index:50;
+    backdrop-filter:saturate(140%) blur(12px);
+    -webkit-backdrop-filter:saturate(140%) blur(12px);
+    background:rgba(11,12,15,.62);
+    border-bottom:1px solid var(--line);
+  }
+  .nav{display:flex;align-items:center;justify-content:space-between;height:68px}
+  .logo{
+    font-family:var(--font-mono);font-weight:700;font-size:18px;color:var(--ink);
+    letter-spacing:-.02em;display:flex;align-items:center;gap:9px;
+  }
+  .logo .blip{
+    width:9px;height:9px;border-radius:2px;background:var(--amber);
+    box-shadow:0 0 14px rgba(255,176,46,.7);transform:rotate(45deg);
+  }
+  .nav__links{display:flex;align-items:center;gap:30px}
+  .nav__links a.txt{font-size:14.5px;color:var(--ink-faint);transition:color .2s}
+  .nav__links a.txt:hover{color:var(--ink)}
+
+  .btn{
+    display:inline-flex;align-items:center;gap:9px;
+    font-family:var(--font-body);font-weight:600;font-size:15px;
+    padding:11px 19px;border-radius:11px;cursor:pointer;
+    transition:transform .15s ease, box-shadow .25s ease, background .2s;
+    white-space:nowrap;
+  }
+  .btn--primary{
+    background:linear-gradient(180deg,var(--amber),var(--amber-deep));
+    color:#1a1404;border:1px solid rgba(255,200,90,.5);
+    box-shadow:0 8px 26px -10px rgba(255,160,30,.7), inset 0 1px 0 rgba(255,255,255,.4);
+  }
+  .btn--primary:hover{transform:translateY(-2px);box-shadow:0 14px 34px -10px rgba(255,160,30,.85), inset 0 1px 0 rgba(255,255,255,.4)}
+  .btn--ghost{background:rgba(255,255,255,.04);color:var(--ink);border:1px solid var(--line-2)}
+  .btn--ghost:hover{background:rgba(255,255,255,.08);transform:translateY(-2px)}
+  .btn svg{width:17px;height:17px}
+
+  /* ---- hero ---- */
+  .hero{padding:84px 0 92px}
+  .hero__grid{display:grid;grid-template-columns:1.05fr .95fr;gap:60px;align-items:center}
+  .eyebrow{
+    font-family:var(--font-mono);font-size:12.5px;letter-spacing:.16em;text-transform:uppercase;
+    color:var(--amber);display:inline-flex;align-items:center;gap:10px;margin-bottom:22px;
+  }
+  .eyebrow::before{content:"";width:26px;height:1px;background:var(--amber);opacity:.7}
+  h1{
+    font-family:var(--font-display);font-weight:800;color:var(--ink);
+    font-size:clamp(2.5rem,5.4vw,4.35rem);line-height:1.02;letter-spacing:-.025em;
+    margin-bottom:24px;
+  }
+  h1 .hl{color:var(--amber);position:relative;white-space:nowrap}
+  .lede{font-size:clamp(1.05rem,1.5vw,1.22rem);max-width:30em;color:var(--ink-dim)}
+  .lede b{color:var(--ink);font-weight:600}
+  .hero__cta{display:flex;flex-wrap:wrap;gap:14px;margin-top:34px}
+  .hero__meta{
+    font-family:var(--font-mono);font-size:12.5px;color:var(--ink-faint);
+    margin-top:20px;display:flex;gap:18px;flex-wrap:wrap;
+  }
+  .hero__meta span{display:inline-flex;align-items:center;gap:7px}
+  .hero__meta .pip{width:6px;height:6px;border-radius:50%;background:var(--teal)}
+
+  /* hero visual: the in-game overlay */
+  .screen{
+    position:relative;border-radius:20px;overflow:hidden;aspect-ratio:16/10;
+    border:1px solid var(--line-2);
+    background:
+      radial-gradient(120% 80% at 70% 20%, rgba(255,176,46,.20), transparent 55%),
+      linear-gradient(200deg,#2a3340 0%, #18202b 38%, #0f1620 100%);
+    box-shadow:0 40px 80px -30px rgba(0,0,0,.8), inset 0 1px 0 rgba(255,255,255,.06);
+  }
+  .screen::before{ /* abstract horizon scenery */
+    content:"";position:absolute;inset:0;
+    background:
+      radial-gradient(60% 40% at 26% 78%, rgba(87,201,214,.22), transparent 60%),
+      linear-gradient(180deg, transparent 52%, rgba(7,10,14,.85) 100%),
+      repeating-linear-gradient(115deg, rgba(255,255,255,.025) 0 2px, transparent 2px 26px);
+  }
+  .screen::after{ /* foreground ridge */
+    content:"";position:absolute;left:-5%;right:-5%;bottom:-2px;height:46%;
+    background:linear-gradient(180deg, rgba(10,14,20,.2), #0a0e14);
+    clip-path:polygon(0 60%,14% 38%,30% 56%,46% 28%,62% 50%,78% 22%,100% 46%,100% 100%,0 100%);
+  }
+  .screen__rec{
+    position:absolute;top:16px;left:16px;z-index:3;
+    font-family:var(--font-mono);font-size:12px;color:#ffd9d6;letter-spacing:.05em;
+    display:flex;align-items:center;gap:8px;
+    background:rgba(8,10,14,.5);padding:6px 11px;border-radius:8px;border:1px solid rgba(255,90,82,.3);
+  }
+  .rec-dot{width:9px;height:9px;border-radius:50%;background:var(--rec);box-shadow:0 0 10px var(--rec);animation:pulse 1.8s ease-in-out infinite}
+
+  .overlay-stack{position:absolute;top:16px;right:16px;z-index:4;display:flex;flex-direction:column;align-items:flex-end;gap:10px}
+  .chip{
+    font-family:var(--font-mono);font-size:12.5px;color:#eef1f6;
+    background:rgba(18,20,26,.92);border:1px solid rgba(255,255,255,.13);
+    padding:9px 13px;border-radius:11px;display:flex;align-items:center;gap:9px;
+    box-shadow:0 12px 30px -12px rgba(0,0,0,.8);backdrop-filter:blur(4px);max-width:300px;
+  }
+  .chip .dot{width:8px;height:8px;border-radius:50%}
+  .dot--cyan{background:#9fdfff;box-shadow:0 0 9px #9fdfff;animation:pulse 1.4s ease-in-out infinite}
+  .chip--saved{color:#cdebd0}
+  .chip .check{color:#8ef0a0;font-weight:700}
+  .chip--listen{animation:rise .6s .3s both}
+  .chip--saved{animation:rise .6s .9s both}
+  .screen__cap{
+    font-family:var(--font-mono);font-size:12px;color:var(--ink-faint);
+    text-align:center;margin-top:16px;letter-spacing:.01em;
+  }
+
+  /* ---- generic section ---- */
+  section{position:relative}
+  .sec{padding:96px 0;scroll-margin-top:84px}
+  .kick{
+    font-family:var(--font-mono);font-size:12.5px;letter-spacing:.16em;text-transform:uppercase;
+    color:var(--teal);margin-bottom:16px;
+  }
+  h2{
+    font-family:var(--font-display);font-weight:800;color:var(--ink);
+    font-size:clamp(1.85rem,3.4vw,2.9rem);line-height:1.08;letter-spacing:-.02em;
+  }
+  .sec__intro{max-width:34em;margin-top:18px;font-size:1.06rem}
+
+  /* ---- problem ---- */
+  .problem{border-top:1px solid var(--line);border-bottom:1px solid var(--line)}
+  .problem p{
+    font-family:var(--font-display);font-weight:600;color:var(--ink);
+    font-size:clamp(1.5rem,3.2vw,2.45rem);line-height:1.22;letter-spacing:-.018em;max-width:18ch;
+  }
+  .problem p .dim{color:var(--ink-faint)}
+  .problem .ph{max-width:none}
+  .problem .grid{display:grid;grid-template-columns:1fr 1fr;gap:50px;align-items:center}
+  .problem .aside{font-size:1.04rem;color:var(--ink-dim);max-width:32em}
+  .problem .aside b{color:var(--amber);font-weight:600}
+
+  /* ---- steps ---- */
+  .steps{display:grid;grid-template-columns:repeat(3,1fr);gap:22px;margin-top:54px}
+  .step{
+    background:linear-gradient(180deg,var(--surface),var(--bg-2));
+    border:1px solid var(--line);border-radius:var(--radius);padding:28px 26px;
+    position:relative;overflow:hidden;transition:transform .2s, border-color .2s;
+  }
+  .step:hover{transform:translateY(-4px);border-color:var(--line-2)}
+  .step__n{font-family:var(--font-mono);font-size:13px;color:var(--amber);margin-bottom:18px}
+  .step__ic{width:40px;height:40px;border-radius:11px;display:grid;place-items:center;margin-bottom:18px;
+    background:var(--amber-soft);border:1px solid rgba(255,176,46,.25)}
+  .step__ic svg{width:21px;height:21px;stroke:var(--amber)}
+  .step h3{font-family:var(--font-display);font-weight:700;color:var(--ink);font-size:1.22rem;margin-bottom:8px;letter-spacing:-.01em}
+  .step p{font-size:.98rem}
+
+  /* ---- alignment (the hook) ---- */
+  .align{border-top:1px solid var(--line);background:
+    radial-gradient(900px 400px at 80% 0%, rgba(255,176,46,.07), transparent 60%)}
+  .align__head{max-width:38em}
+  .align h2 .hl{color:var(--amber)}
+  .align__viz{margin-top:56px;background:linear-gradient(180deg,var(--surface),#0e1117);
+    border:1px solid var(--line-2);border-radius:22px;padding:42px 40px 36px;
+    box-shadow:0 40px 90px -40px rgba(0,0,0,.7)}
+  .vlabel{font-family:var(--font-mono);font-size:11.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--ink-faint);margin-bottom:16px;display:flex;align-items:center;gap:8px}
+  .vlabel .sq{width:8px;height:8px;background:var(--teal);border-radius:2px}
+
+  .track{position:relative;padding-top:74px;padding-bottom:8px}
+  .clip{display:flex;gap:3px;height:64px;border-radius:9px;overflow:hidden;border:1px solid rgba(87,201,214,.25)}
+  .frame{flex:1;background:
+    linear-gradient(180deg, rgba(87,201,214,.20), rgba(87,201,214,.05)),
+    repeating-linear-gradient(90deg, rgba(255,255,255,.04) 0 1px, transparent 1px 7px)}
+  .frame:nth-child(odd){background:linear-gradient(180deg, rgba(87,201,214,.13), rgba(40,60,70,.18))}
+  .frame:nth-child(3n){background:linear-gradient(180deg, rgba(120,170,180,.16), rgba(30,46,54,.2))}
+  .ruler{display:flex;justify-content:space-between;margin-top:10px;font-family:var(--font-mono);font-size:11.5px;color:var(--ink-faint)}
+
+  .pin{position:absolute;top:0;left:79%;transform:translateX(-50%);z-index:3;display:flex;flex-direction:column;align-items:center;animation:drop .7s 1.1s both}
+  .pin__card{
+    background:var(--surface-2);border:1px solid rgba(255,176,46,.4);
+    color:var(--ink);font-size:13px;line-height:1.4;padding:9px 13px;border-radius:10px;
+    max-width:230px;text-align:center;box-shadow:0 14px 30px -14px rgba(0,0,0,.8);
+  }
+  .pin__time{display:block;font-family:var(--font-mono);font-size:12px;color:var(--amber);margin-top:4px}
+  .pin__stem{width:2px;height:18px;background:linear-gradient(180deg,var(--amber),rgba(255,176,46,.2))}
+  .pin__dot{width:15px;height:15px;background:var(--amber);transform:rotate(45deg);border-radius:3px;
+    box-shadow:0 0 16px rgba(255,176,46,.8);margin-top:-2px}
+
+  .math{
+    margin-top:30px;display:flex;flex-wrap:wrap;align-items:center;gap:14px;
+    font-family:var(--font-mono);font-size:clamp(.85rem,2.4vw,1.05rem);color:var(--ink);
+    background:rgba(255,255,255,.025);border:1px solid var(--line);border-radius:13px;padding:16px 20px;
+  }
+  .math .op{color:var(--ink-faint)}
+  .math .t-note{color:var(--amber)}
+  .math .t-start{color:var(--teal)}
+  .math .res{color:var(--ink);font-weight:700}
+  .math .res b{color:var(--amber)}
+  .math .lbl{font-size:11px;color:var(--ink-faint);display:block}
+
+  /* ---- compare / why not ---- */
+  .why{border-top:1px solid var(--line)}
+  .crow{display:grid;grid-template-columns:200px 1fr;gap:24px;align-items:baseline;
+    padding:24px 0;border-bottom:1px solid var(--line)}
+  .crow:first-of-type{border-top:1px solid var(--line)}
+  .crow__t{font-family:var(--font-display);font-weight:700;color:var(--ink-dim);font-size:1.12rem;letter-spacing:-.01em}
+  .crow__d{font-size:1.02rem;color:var(--ink-faint)}
+  .crow--win{background:linear-gradient(90deg, rgba(255,176,46,.07), transparent);
+    margin:0 -20px;padding:26px 20px;border-radius:14px;border:1px solid rgba(255,176,46,.22);border-bottom:1px solid rgba(255,176,46,.22)}
+  .crow--win .crow__t{color:var(--amber)}
+  .crow--win .crow__d{color:var(--ink)}
+
+  /* ---- features ---- */
+  .feat{border-top:1px solid var(--line)}
+  .features{display:grid;grid-template-columns:repeat(3,1fr);gap:20px;margin-top:54px}
+  .fcard{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:26px;
+    transition:transform .2s,border-color .2s,background .2s}
+  .fcard:hover{transform:translateY(-4px);border-color:var(--line-2);background:var(--surface-2)}
+  .fcard__ic{width:38px;height:38px;border-radius:10px;display:grid;place-items:center;margin-bottom:16px;
+    background:rgba(87,201,214,.1);border:1px solid rgba(87,201,214,.25)}
+  .fcard__ic svg{width:20px;height:20px;stroke:var(--teal)}
+  .fcard h3{font-family:var(--font-display);font-weight:700;color:var(--ink);font-size:1.12rem;margin-bottom:7px;letter-spacing:-.01em}
+  .fcard p{font-size:.96rem}
+
+  /* ---- personas ---- */
+  .who{border-top:1px solid var(--line);text-align:center}
+  .tags{display:flex;flex-wrap:wrap;gap:13px;justify-content:center;margin-top:36px;max-width:50em;margin-left:auto;margin-right:auto}
+  .tag{font-family:var(--font-mono);font-size:14px;color:var(--ink);padding:11px 18px;border-radius:999px;
+    background:rgba(255,255,255,.035);border:1px solid var(--line-2);transition:.2s}
+  .tag:hover{border-color:var(--amber);color:var(--amber)}
+  .who .last{display:block;margin-top:30px;color:var(--ink-faint);font-size:1.04rem}
+
+  /* ---- CTA ---- */
+  .get{border-top:1px solid var(--line)}
+  .getbox{
+    text-align:center;border-radius:24px;padding:64px 40px;position:relative;overflow:hidden;
+    background:
+      radial-gradient(700px 300px at 50% -20%, rgba(255,176,46,.22), transparent 60%),
+      linear-gradient(180deg,var(--surface-2),#0e1015);
+    border:1px solid var(--line-2);
+  }
+  .getbox h2{font-size:clamp(2rem,4vw,3rem)}
+  .getbox p{max-width:30em;margin:16px auto 0;font-size:1.08rem}
+  .getbox .hero__cta{justify-content:center}
+  .getbox .coffee{margin-top:22px;font-family:var(--font-mono);font-size:12.5px;color:var(--ink-faint)}
+
+  /* ---- FAQ ---- */
+  .faq{border-top:1px solid var(--line)}
+  .qa{border-bottom:1px solid var(--line)}
+  details summary{
+    list-style:none;cursor:pointer;padding:24px 0;display:flex;align-items:center;justify-content:space-between;gap:20px;
+    font-family:var(--font-display);font-weight:600;color:var(--ink);font-size:1.16rem;letter-spacing:-.01em;
+  }
+  details summary::-webkit-details-marker{display:none}
+  .qa .plus{flex:none;width:24px;height:24px;position:relative;transition:transform .25s}
+  .qa .plus::before,.qa .plus::after{content:"";position:absolute;background:var(--amber);border-radius:2px}
+  .qa .plus::before{top:11px;left:3px;right:3px;height:2px}
+  .qa .plus::after{left:11px;top:3px;bottom:3px;width:2px;transition:opacity .25s}
+  details[open] .plus{transform:rotate(90deg)}
+  details[open] .plus::after{opacity:0}
+  .qa__a{padding:0 0 26px;color:var(--ink-dim);max-width:60ch;font-size:1.02rem}
+
+  /* ---- footer ---- */
+  footer{border-top:1px solid var(--line);padding:48px 0 56px}
+  .foot{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:24px}
+  .foot__tag{color:var(--ink-faint);font-size:.95rem}
+  .foot__links{display:flex;gap:26px;font-family:var(--font-mono);font-size:13px}
+  .foot__links a{color:var(--ink-faint);transition:.2s}
+  .foot__links a:hover{color:var(--amber)}
+  .foot__fine{margin-top:26px;font-size:12px;color:#5d626e;font-family:var(--font-mono)}
+
+  /* ---- animations ---- */
+  @keyframes rise{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:none}}
+  @keyframes drop{from{opacity:0;transform:translateX(-50%) translateY(-16px)}to{opacity:1;transform:translateX(-50%) translateY(0)}}
+  @keyframes pulse{0%,100%{opacity:1}50%{opacity:.35}}
+  .anim{animation:rise .7s both}
+  .d1{animation-delay:.05s}.d2{animation-delay:.15s}.d3{animation-delay:.25s}.d4{animation-delay:.35s}.d5{animation-delay:.45s}
+
+  @media (prefers-reduced-motion:reduce){
+    *{animation:none!important;scroll-behavior:auto!important}
+  }
+
+  /* ---- responsive ---- */
+  @media (max-width:880px){
+    .hero__grid{grid-template-columns:1fr;gap:46px}
+    .hero{padding:54px 0 64px}
+    .steps,.features{grid-template-columns:1fr}
+    .problem .grid{grid-template-columns:1fr;gap:28px}
+    .crow{grid-template-columns:1fr;gap:6px}
+    .crow--win{margin:0}
+    .nav__links .txt{display:none}
+    .sec{padding:68px 0}
+  }
+  @media (max-width:560px){
+    .wrap{padding:0 20px}
+    .getbox{padding:46px 24px}
+    .align__viz{padding:26px 20px 24px}
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="wrap nav">
+    <a class="logo" href="#top"><span class="blip"></span>gamenote</a>
+    <nav class="nav__links">
+      <a class="txt" href="#how">How it works</a>
+      <a class="txt" href="#why">Why it's different</a>
+      <a class="txt" href="#faq">FAQ</a>
+      <a class="txt" href="https://github.com/annotatedabstract/gamenote">GitHub</a>
+      <a class="btn btn--primary" href="https://github.com/annotatedabstract/gamenote/releases/latest">Download</a>
+    </nav>
+  </div>
+</header>
+
+<main id="top">
+
+  <!-- HERO -->
+  <section class="hero">
+    <div class="wrap hero__grid">
+      <div class="hero__copy">
+        <span class="eyebrow anim d1">Voice notes for gameplay recording</span>
+        <h1 class="anim d2">Mark the moment while you play. <span class="hl">Find it when you edit.</span></h1>
+        <p class="lede anim d3">Tap a Stream Deck key (or any programmable key press), say what you're thinking, and keep playing. gamenote files a <b>timestamped voice note that lines up with your footage</b>, so editing starts at the exact frame.</p>
+        <div class="hero__cta anim d4">
+          <a class="btn btn--primary" href="https://github.com/annotatedabstract/gamenote/releases/latest">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12m0 0l-4-4m4 4l4-4M5 21h14"/></svg>
+            Download for Windows
+          </a>
+          <a class="btn btn--ghost" href="https://github.com/annotatedabstract/gamenote">
+            <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 .5a11.5 11.5 0 0 0-3.64 22.42c.58.1.79-.25.79-.56v-2c-3.2.7-3.88-1.36-3.88-1.36-.53-1.34-1.3-1.7-1.3-1.7-1.06-.72.08-.71.08-.71 1.17.08 1.79 1.2 1.79 1.2 1.04 1.78 2.73 1.27 3.4.97.1-.75.4-1.27.74-1.56-2.56-.29-5.26-1.28-5.26-5.7 0-1.26.45-2.29 1.19-3.1-.12-.29-.52-1.46.11-3.05 0 0 .97-.31 3.18 1.18a11 11 0 0 1 5.8 0c2.2-1.49 3.17-1.18 3.17-1.18.63 1.59.23 2.76.11 3.05.74.81 1.19 1.84 1.19 3.1 0 4.43-2.7 5.41-5.27 5.69.41.36.78 1.06.78 2.14v3.17c0 .31.21.67.8.56A11.5 11.5 0 0 0 12 .5Z"/></svg>
+            View on GitHub
+          </a>
+        </div>
+        <div class="hero__meta anim d5">
+          <span><span class="pip"></span>Free &amp; open-source</span>
+          <span><span class="pip"></span>Runs locally</span>
+          <span><span class="pip"></span>Windows</span>
+        </div>
+      </div>
+
+      <div class="hero__visual anim d4">
+        <div class="screen">
+          <div class="screen__rec"><span class="rec-dot"></span>REC 1:24:06</div>
+          <div class="overlay-stack">
+            <div class="chip chip--listen"><span class="dot dot--cyan"></span>listening</div>
+            <div class="chip chip--saved"><span class="check">✓</span>saved: this intro is the perfect cold open</div>
+          </div>
+        </div>
+        <div class="screen__cap">The overlay never takes focus. Your game keeps running.</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- PROBLEM -->
+  <section class="sec problem">
+    <div class="wrap grid">
+      <p class="ph">You had the thought mid-fight. <span class="dim">Then it was gone.</span></p>
+      <p class="aside">Or it's buried somewhere in three hours of footage you now have to scrub through, frame by frame, trying to remember <b>when</b> it happened. The idea was the easy part. Finding it again is the work.</p>
+    </div>
+  </section>
+
+  <!-- HOW IT WORKS -->
+  <section class="sec" id="how">
+    <div class="wrap">
+      <p class="kick">How it works</p>
+      <h2>Three seconds, no alt-tab.</h2>
+      <div class="steps">
+        <div class="step">
+          <div class="step__n">01</div>
+          <div class="step__ic"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="3" width="14" height="18" rx="2"/><path d="M9 7h6"/></svg></div>
+          <h3>Press your key</h3>
+          <p>No window opens. Focus stays on the game, exactly where you left it.</p>
+        </div>
+        <div class="step">
+          <div class="step__n">02</div>
+          <div class="step__ic"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="2" width="6" height="12" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v4"/></svg></div>
+          <h3>Speak your note</h3>
+          <p>It auto-stops when you stop talking, then transcribes locally in seconds.</p>
+        </div>
+        <div class="step">
+          <div class="step__n">03</div>
+          <div class="step__ic"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5h16M4 12h16M4 19h10"/><circle cx="19" cy="19" r="2"/></svg></div>
+          <h3>Keep playing</h3>
+          <p>The note lands in a plain text file, stamped with the time, in a folder you control.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ALIGNMENT: THE HOOK -->
+  <section class="sec align">
+    <div class="wrap">
+      <div class="align__head">
+        <p class="kick">The part nobody else does</p>
+        <h2>Notes that know <span class="hl">where they are</span> in your footage.</h2>
+        <p class="sec__intro">Every note shares the same clock as your recording. So the offset into a clip is just the note time minus the clip's start time. Open the file in your editor and jump straight to the beat. It holds across hourly splits too, because each split is stamped with its own start.</p>
+      </div>
+
+      <div class="align__viz">
+        <div class="vlabel"><span class="sq"></span>session footage &nbsp;·&nbsp; Octopath_2026-05-31_14-02-10.mp4</div>
+        <div class="track">
+          <div class="pin">
+            <div class="pin__card">callback to the opening line, use it in the edit<span class="pin__time">note · 14:08:22</span></div>
+            <div class="pin__stem"></div>
+            <div class="pin__dot"></div>
+          </div>
+          <div class="clip">
+            <span class="frame"></span><span class="frame"></span><span class="frame"></span><span class="frame"></span>
+            <span class="frame"></span><span class="frame"></span><span class="frame"></span><span class="frame"></span>
+            <span class="frame"></span><span class="frame"></span><span class="frame"></span><span class="frame"></span>
+          </div>
+          <div class="ruler"><span>14:02:10</span><span>14:04</span><span>14:06</span><span>14:08</span><span>14:10</span></div>
+        </div>
+        <div class="math">
+          <span><span class="lbl">note time</span><span class="t-note">14:08:22</span></span>
+          <span class="op">−</span>
+          <span><span class="lbl">clip start</span><span class="t-start">14:02:10</span></span>
+          <span class="op">=</span>
+          <span class="res"><span class="lbl">jump to</span><b>06:12</b> into the clip</span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- WHY DIFFERENT -->
+  <section class="sec why" id="why">
+    <div class="wrap">
+      <p class="kick">Why not just use a dictation app?</p>
+      <h2>Because they're built for a different job.</h2>
+      <div style="margin-top:46px">
+        <div class="crow">
+          <div class="crow__t">Dictation apps</div>
+          <div class="crow__d">Type into whatever window is focused. Useless behind a game, and they grab focus the moment you trigger them.</div>
+        </div>
+        <div class="crow">
+          <div class="crow__t">Note apps</div>
+          <div class="crow__d">Make you alt-tab to a window. That breaks the moment, and the moment was the whole point.</div>
+        </div>
+        <div class="crow">
+          <div class="crow__t">AI auto-summaries</div>
+          <div class="crow__d">Happen after the session and summarize what the recording shows, not the specific thing you noticed while it was happening.</div>
+        </div>
+        <div class="crow crow--win">
+          <div class="crow__t">gamenote</div>
+          <div class="crow__d">Captures your thought, at the exact moment, hands-free, and files it where you'll actually find it. The one job those tools aren't doing.</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- FEATURES -->
+  <section class="sec feat">
+    <div class="wrap">
+      <p class="kick">Built for your setup</p>
+      <h2>Local, quiet, and yours.</h2>
+      <div class="features">
+        <div class="fcard">
+          <div class="fcard__ic"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="10" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg></div>
+          <h3>Runs locally</h3>
+          <p>Your audio never leaves your machine. No cloud, no account, no telemetry.</p>
+        </div>
+        <div class="fcard">
+          <div class="fcard__ic"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M7 9h.01M11 9h.01M15 9h.01M7 13h6"/></svg></div>
+          <h3>Bind it to anything</h3>
+          <p>A Stream Deck, a macro pad, or any programmable key on your keyboard. Set one key per note type.</p>
+        </div>
+        <div class="fcard">
+          <div class="fcard__ic"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h10M4 12h16M4 18h8"/><circle cx="18" cy="6" r="2"/></svg></div>
+          <h3>Profiles</h3>
+          <p>A "story beat" note and a "bug" note can file to different places, formatted differently.</p>
+        </div>
+        <div class="fcard">
+          <div class="fcard__ic"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2 4 14h7l-1 8 9-12h-7l1-8z"/></svg></div>
+          <h3>Your files, your format</h3>
+          <p>Plain timestamped Markdown in folders you control. No database, no lock-in.</p>
+        </div>
+        <div class="fcard">
+          <div class="fcard__ic"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3a9 9 0 1 0 9 9"/><path d="M12 7v5l3 2"/></svg></div>
+          <h3>Stays out of the way</h3>
+          <p>The overlay never grabs focus, even over a fullscreen game. You won't get tabbed out.</p>
+        </div>
+        <div class="fcard">
+          <div class="fcard__ic"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 17V9m4 8V5m4 12v-6m4 6V8m4 9v-4"/></svg></div>
+          <h3>Fast either way</h3>
+          <p>Runs fine on CPU. Have an NVIDIA GPU? It just makes transcription quicker.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- WHO -->
+  <section class="sec who">
+    <div class="wrap">
+      <p class="kick">Who it's for</p>
+      <h2>Anyone who records first.</h2>
+      <div class="tags">
+        <span class="tag">Video essayists</span>
+        <span class="tag">Let's-players</span>
+        <span class="tag">Reviewers</span>
+        <span class="tag">Speedrunners</span>
+        <span class="tag">Playtesters</span>
+        <span class="tag">Streamers with VODs</span>
+      </div>
+      <span class="last">If you capture the footage now and make sense of it later, this is for you.</span>
+    </div>
+  </section>
+
+  <!-- GET -->
+  <section class="sec get" id="get">
+    <div class="wrap">
+      <div class="getbox">
+        <h2>Get gamenote</h2>
+        <p>Free and open-source. Download the Windows app, or build it from source and tweak it to fit your pipeline.</p>
+        <div class="hero__cta">
+          <a class="btn btn--primary" href="https://github.com/annotatedabstract/gamenote/releases/latest">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12m0 0l-4-4m4 4l4-4M5 21h14"/></svg>
+            Download for Windows
+          </a>
+          <a class="btn btn--ghost" href="https://github.com/annotatedabstract/gamenote">
+            <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 .5a11.5 11.5 0 0 0-3.64 22.42c.58.1.79-.25.79-.56v-2c-3.2.7-3.88-1.36-3.88-1.36-.53-1.34-1.3-1.7-1.3-1.7-1.06-.72.08-.71.08-.71 1.17.08 1.79 1.2 1.79 1.2 1.04 1.78 2.73 1.27 3.4.97.1-.75.4-1.27.74-1.56-2.56-.29-5.26-1.28-5.26-5.7 0-1.26.45-2.29 1.19-3.1-.12-.29-.52-1.46.11-3.05 0 0 .97-.31 3.18 1.18a11 11 0 0 1 5.8 0c2.2-1.49 3.17-1.18 3.17-1.18.63 1.59.23 2.76.11 3.05.74.81 1.19 1.84 1.19 3.1 0 4.43-2.7 5.41-5.27 5.69.41.36.78 1.06.78 2.14v3.17c0 .31.21.67.8.56A11.5 11.5 0 0 0 12 .5Z"/></svg>
+            View on GitHub
+          </a>
+        </div>
+        <p class="coffee">If it saves you an editing session, you can buy me a coffee.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- FAQ -->
+  <section class="sec faq" id="faq">
+    <div class="wrap">
+      <p class="kick">FAQ</p>
+      <h2>The questions that come up.</h2>
+      <div style="margin-top:40px">
+        <div class="qa"><details><summary>Do I need a GPU?<span class="plus"></span></summary><div class="qa__a">No. It runs on CPU and transcribes a short note in a second or two. An NVIDIA GPU just makes it faster.</div></details></div>
+        <div class="qa"><details><summary>Does it work over fullscreen games?<span class="plus"></span></summary><div class="qa__a">Yes. Borderless windowed is the most reliable for both the hotkey and the overlay, which is the common setup for recording anyway.</div></details></div>
+        <div class="qa"><details><summary>Is my voice sent anywhere?<span class="plus"></span></summary><div class="qa__a">No. Transcription is fully local. Your audio and your notes never leave your machine.</div></details></div>
+        <div class="qa"><details><summary>Windows only?<span class="plus"></span></summary><div class="qa__a">For now, yes. The hotkey and the focus-safe overlay are built for Windows first.</div></details></div>
+        <div class="qa"><details><summary>Does it need admin?<span class="plus"></span></summary><div class="qa__a">To catch your key while a game runs as administrator, yes, the app needs to run at the same level. There's a one-time setup note that walks you through it.</div></details></div>
+      </div>
+    </div>
+  </section>
+
+</main>
+
+<footer>
+  <div class="wrap">
+    <div class="foot">
+      <a class="logo" href="#top"><span class="blip"></span>gamenote</a>
+      <span class="foot__tag">Made for creators who record first.</span>
+      <nav class="foot__links">
+        <a href="#how">How it works</a>
+        <a href="#faq">FAQ</a>
+        <a href="https://github.com/annotatedabstract/gamenote">GitHub</a>
+      </nav>
+    </div>
+    <p class="foot__fine">Not affiliated with Elgato or Stream Deck. Stream Deck is a trademark of its respective owner.</p>
+  </div>
+</footer>
+
+</body>
+</html>
