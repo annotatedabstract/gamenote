@@ -107,6 +107,29 @@ def resolve_model_source(model_size: str) -> tuple[str, dict]:
     return model_size, {}
 
 
+def model_available(model_size: str) -> bool:
+    """Best-effort check for whether the model is already present locally (so the
+    first run can show a 'downloading model' message). False just means we show
+    the download message; the load still works either way."""
+    if _is_frozen():
+        bundled = _resource_base() / "models" / model_size
+        if (bundled / "model.bin").exists():
+            return True
+    cache = _writable_model_cache()
+    if (cache / model_size / "model.bin").exists():
+        return True
+    try:
+        from faster_whisper.utils import _MODELS  # repo id per size, e.g. Systran/...
+        repo = _MODELS.get(model_size)
+    except Exception:
+        repo = None
+    if repo:
+        folder = cache / ("models--" + repo.replace("/", "--"))
+        if folder.exists() and any(folder.rglob("model.bin")):
+            return True
+    return False
+
+
 class Transcriber:
     """Holds the loaded model. ``load()`` is blocking (call it on a background
     thread at startup); ``ready`` reports whether the model is usable."""
@@ -154,7 +177,8 @@ class Transcriber:
         if self.model is None:
             raise RuntimeError("Transcriber.transcribe called before load()")
         beam_size = int(self.cfg["beam_size"])
+        language = str(self.cfg.get("language", "en")) or "en"
         segments, _ = self.model.transcribe(
-            audio, language="en", beam_size=beam_size, vad_filter=False
+            audio, language=language, beam_size=beam_size, vad_filter=False
         )
         return " ".join(seg.text.strip() for seg in segments).strip()

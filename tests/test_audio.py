@@ -48,3 +48,23 @@ def test_record_raises_when_no_device_works(monkeypatch):
     monkeypatch.setattr(audio.sd, "InputStream", boom)
     with pytest.raises(audio.AudioCaptureError):
         audio.record(threading.Event(), _global(input_device=None))
+
+
+def test_vad_mode_returns_none_for_pure_silence(monkeypatch):
+    monkeypatch.setattr(audio.sd, "InputStream", lambda *a, **k: _FakeStream())
+    out = audio.record(
+        threading.Event(),
+        _global(input_device=None, start_grace_seconds=0.1, max_seconds=1.0),
+        mode="vad",
+    )
+    assert out is None  # no speech detected -> accidental press
+
+
+def test_toggle_mode_records_even_without_speech(monkeypatch):
+    monkeypatch.setattr(audio.sd, "InputStream", lambda *a, **k: _FakeStream())
+    out = audio.record(
+        threading.Event(),
+        _global(input_device=None, max_seconds=0.2, min_seconds=0.05),
+        mode="toggle",
+    )
+    assert out is not None  # toggle keeps recording until stop/max, silence included

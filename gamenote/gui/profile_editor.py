@@ -17,6 +17,7 @@ from PySide6.QtWidgets import (
     QPushButton,
     QHBoxLayout,
     QCheckBox,
+    QComboBox,
     QLabel,
     QFileDialog,
     QDialog,
@@ -89,6 +90,10 @@ class ProfileEditor(QWidget):
         dr_widget = QWidget()
         dr_widget.setLayout(dr_row)
 
+        self.capture_mode = QComboBox()
+        self.capture_mode.addItem("Auto-stop on silence (VAD)", "vad")
+        self.capture_mode.addItem("Push-to-talk (press again to stop)", "toggle")
+
         self.path_template = QLineEdit()
         self.timestamp_format = QLineEdit()
         self.prefix = QLineEdit()
@@ -118,6 +123,7 @@ class ProfileEditor(QWidget):
         form = QFormLayout(self)
         form.addRow("Name", self.name)
         form.addRow("Hotkey", hk_widget)
+        form.addRow("Capture mode", self.capture_mode)
         form.addRow("Destination root", dr_widget)
         form.addRow("Path template", self.path_template)
         form.addRow("Timestamp format", self.timestamp_format)
@@ -142,6 +148,7 @@ class ProfileEditor(QWidget):
 
         self.name.textChanged.connect(self._on_edit)
         self.hotkey.textChanged.connect(self._on_edit)
+        self.capture_mode.currentIndexChanged.connect(self._on_edit)
         self.dest_root.textChanged.connect(self._on_edit)
         self.path_template.textChanged.connect(self._on_edit)
         self.timestamp_format.textChanged.connect(self._on_edit)
@@ -162,6 +169,8 @@ class ProfileEditor(QWidget):
         if profile is not None:
             self.name.setText(profile.name)
             self.hotkey.setText(profile.hotkey)
+            mode_idx = self.capture_mode.findData(profile.capture_mode)
+            self.capture_mode.setCurrentIndex(mode_idx if mode_idx >= 0 else 0)
             self.dest_root.setText(profile.dest_root)
             self.path_template.setText(profile.path_template)
             self.timestamp_format.setText(profile.line_format.timestamp_format)
@@ -184,6 +193,7 @@ class ProfileEditor(QWidget):
         p = self._profile
         p.name = self.name.text()
         p.hotkey = self.hotkey.text().strip().lower()
+        p.capture_mode = self.capture_mode.currentData()
         p.dest_root = self.dest_root.text()
         p.path_template = self.path_template.text()
         p.line_format.timestamp_format = self.timestamp_format.text()
@@ -254,6 +264,7 @@ class ProfileEditor(QWidget):
         if reset_identity:
             p.name = src.name
             p.hotkey = src.hotkey
+        p.capture_mode = src.capture_mode
         p.dest_root = src.dest_root
         p.path_template = src.path_template
         p.line_format = src.line_format

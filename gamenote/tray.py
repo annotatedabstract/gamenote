@@ -10,8 +10,8 @@ from __future__ import annotations
 import logging
 from typing import Callable
 
-from PySide6.QtCore import QObject, Slot
-from PySide6.QtGui import QIcon, QAction, QCursor
+from PySide6.QtCore import QObject, Slot, QUrl
+from PySide6.QtGui import QIcon, QAction, QCursor, QDesktopServices
 from PySide6.QtWidgets import QSystemTrayIcon, QMenu, QInputDialog
 
 from .controller import Controller
@@ -60,6 +60,7 @@ class Tray(QObject):
 
         controller.status_changed.connect(self.set_status)
         self.tray.activated.connect(self._on_activated)
+        self.menu.aboutToShow.connect(self._build_menu)  # keep items (e.g. last note) fresh
 
     @Slot(QSystemTrayIcon.ActivationReason)
     def _on_activated(self, reason: QSystemTrayIcon.ActivationReason) -> None:
@@ -104,6 +105,19 @@ class Tray(QObject):
         clear.triggered.connect(lambda: self._choose_context(""))
         context_menu.addAction(clear)
 
+        open_folder = QAction("Open notes folder", self.menu)
+        open_folder.setEnabled(self.controller.last_note_dir() is not None)
+        open_folder.triggered.connect(
+            lambda: self._open_path(self.controller.last_note_dir())
+        )
+        self.menu.addAction(open_folder)
+        open_last = QAction("Open last note", self.menu)
+        open_last.setEnabled(self.controller.last_note_file() is not None)
+        open_last.triggered.connect(
+            lambda: self._open_path(self.controller.last_note_file())
+        )
+        self.menu.addAction(open_last)
+
         self.pause_action = QAction("Pause hotkeys", self.menu)
         self.pause_action.setCheckable(True)
         self.pause_action.setChecked(self.hotkeys.paused)
@@ -130,6 +144,10 @@ class Tray(QObject):
         self.tray.setToolTip(f"gamenote - {status}\nContext: {current or '(none)'}")
 
     # --- actions -----------------------------------------------------------
+
+    def _open_path(self, path) -> None:
+        if path is not None:
+            QDesktopServices.openUrl(QUrl.fromLocalFile(str(path)))
 
     def _prompt_context(self) -> None:
         current = self.controller.current_context()

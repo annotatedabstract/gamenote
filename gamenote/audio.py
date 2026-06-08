@@ -38,6 +38,7 @@ def list_input_devices() -> list[tuple[int, str]]:
 def record(
     stop_event: threading.Event,
     cfg: dict,
+    mode: str = "vad",
     on_rms=None,
     debug: bool = False,
 ):
@@ -45,9 +46,11 @@ def record(
     speech was captured. ``on_rms`` (optional) is called with each frame's RMS
     for the live mic meter; it must not block.
 
-    VAD: speech is anything above ``silence_threshold``; once speech has started,
-    ``silence_seconds`` of trailing silence ends the note. If no speech is heard
-    within ``start_grace_seconds`` the press is treated as accidental.
+    ``mode`` "vad": speech is anything above ``silence_threshold``; once speech
+    has started, ``silence_seconds`` of trailing silence ends the note, and if no
+    speech is heard within ``start_grace_seconds`` the press is treated as
+    accidental. ``mode`` "toggle": record until ``stop_event`` (the second press)
+    or ``max_seconds``, no silence handling.
     """
     sample_rate = int(cfg["sample_rate"])
     frame = int(sample_rate * int(cfg["frame_ms"]) / 1000)
@@ -101,15 +104,16 @@ def record(
                 if elapsed >= max_seconds:
                     break
 
-                if rms > silence_threshold:
-                    speech_started = True
-                    silence_run = 0.0
-                elif speech_started:
-                    silence_run += frame_dur
-                    if silence_run >= silence_seconds:
-                        break
-                elif elapsed >= start_grace_seconds:
-                    break  # never heard speech; treat as an accidental press
+                if mode == "vad":
+                    if rms > silence_threshold:
+                        speech_started = True
+                        silence_run = 0.0
+                    elif speech_started:
+                        silence_run += frame_dur
+                        if silence_run >= silence_seconds:
+                            break
+                    elif elapsed >= start_grace_seconds:
+                        break  # never heard speech; treat as an accidental press
     except Exception as e:
         log.error("Audio capture failed: %s", e)
         raise AudioCaptureError(str(e)) from e
@@ -117,6 +121,8 @@ def record(
     if not frames:
         return None
     audio = np.concatenate(frames, axis=0).flatten().astype(np.float32)
-    if len(audio) / sample_rate < min_seconds or not speech_started:
+    if len(audio) / sample_rate < min_seconds:
         return None
+    if mode == "vad" and not speech_started:
+        return None  # accidental press; in toggle the user recorded on purpose
     return audio

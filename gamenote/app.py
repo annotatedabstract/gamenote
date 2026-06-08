@@ -153,12 +153,18 @@ def main() -> int:
     def load_model_async() -> None:
         def run() -> None:
             try:
-                controller.status_changed.emit("loading")
+                if not gn_transcribe.model_available(global_cfg["model_size"]):
+                    controller.status_changed.emit("downloading model")
+                    controller.launch_message.emit(
+                        "downloading model (one time, ~480 MB)...", "#ffe9a8"
+                    )
+                else:
+                    controller.status_changed.emit("loading")
                 device = transcriber.load()
                 controller.status_changed.emit(f"ready ({device})")
                 controller.launch_message.emit("gamenote ready", "#cfe8ff")
                 if bool(global_cfg.get("launch_sound", True)):
-                    gn_sounds.play_arming()
+                    gn_sounds.play_arming(global_cfg.get("launch_sound_file") or None)
             except Exception as e:
                 log.error("Model load failed: %s", e)
                 controller.status_changed.emit("model error")

@@ -10,6 +10,7 @@ never breaking capture.
 
 from __future__ import annotations
 
+import wave
 import logging
 
 import numpy as np
@@ -18,6 +19,31 @@ import sounddevice as sd
 log = logging.getLogger("gamenote.sounds")
 
 _SR = 44100
+_wav_cache: dict[str, tuple[np.ndarray, int]] = {}
+
+
+def _load_wav(path: str) -> tuple[np.ndarray, int]:
+    """Load a WAV file into a mono float32 array and its sample rate (cached)."""
+    if path in _wav_cache:
+        return _wav_cache[path]
+    with wave.open(path, "rb") as w:
+        channels = w.getnchannels()
+        width = w.getsampwidth()
+        rate = w.getframerate()
+        raw = w.readframes(w.getnframes())
+    if width == 2:
+        data = np.frombuffer(raw, dtype=np.int16).astype(np.float32) / 32768.0
+    elif width == 1:
+        data = (np.frombuffer(raw, dtype=np.uint8).astype(np.float32) - 128.0) / 128.0
+    elif width == 4:
+        data = np.frombuffer(raw, dtype=np.int32).astype(np.float32) / 2147483648.0
+    else:
+        raise ValueError(f"unsupported WAV sample width: {width}")
+    if channels > 1:
+        data = data.reshape(-1, channels).mean(axis=1)  # downmix to mono
+    result = (data.astype(np.float32), rate)
+    _wav_cache[path] = result
+    return result
 
 
 def _tone(freq: float, dur: float, volume: float, fade: float = 0.008) -> np.ndarray:
@@ -50,16 +76,27 @@ _ARMING = np.concatenate([
 _BEEP = _tone(880.0, 0.055, 0.12)
 
 
-def _play(samples: np.ndarray) -> None:
+def _play(samples: np.ndarray, sample_rate: int = _SR) -> None:
     try:
-        sd.play(samples, _SR, blocking=False)
+        sd.play(samples, sample_rate, blocking=False)
     except Exception as e:  # no output device, etc.
         log.debug("Could not play sound: %s", e)
 
 
-def play_arming() -> None:
-    _play(_ARMING)
+def _play_file_or(samples: np.ndarray, path: str | None) -> None:
+    if path:
+        try:
+            data, rate = _load_wav(path)
+            _play(data, rate)
+            return
+        except Exception as e:
+            log.warning("Could not play custom sound %r (%s); using the default.", path, e)
+    _play(samples)
 
 
-def play_hotkey_beep() -> None:
-    _play(_BEEP)
+def play_arming(path: str | None = None) -> None:
+    _play_file_or(_ARMING, path)
+
+
+def play_hotkey_beep(path: str | None = None) -> None:
+    _play_file_or(_BEEP, path)

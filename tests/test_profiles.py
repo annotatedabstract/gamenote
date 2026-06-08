@@ -17,6 +17,9 @@ def test_to_from_dict_roundtrip():
     d = p.to_dict()
     assert Profile.from_dict(d).to_dict() == d
     assert "session_from_file" in d and "session_file" in d and "hotkey_beep" in d
+    assert d["capture_mode"] == "vad"  # default
+    assert Profile.from_dict({"capture_mode": "toggle"}).capture_mode == "toggle"
+    assert Profile.from_dict({"capture_mode": "weird"}).capture_mode == "vad"  # invalid -> vad
 
 
 def test_resolve_path_tokens_and_sanitization():

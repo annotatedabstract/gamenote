@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import logging
 import threading
+from pathlib import Path
 
 from PySide6.QtCore import QObject, Signal, Slot, Qt
 
@@ -50,6 +51,8 @@ class Controller(QObject):
 
         self.lock = threading.Lock()
         self.is_recording = False
+        self.active_profile_id: str | None = None
+        self.last_note_path: Path | None = None
         self.stop_event = threading.Event()
 
         self.trigger.connect(self.on_profile, Qt.QueuedConnection)
@@ -68,14 +71,22 @@ class Controller(QObject):
 
         with self.lock:
             if self.is_recording:
+                active = self.profiles.get(self.active_profile_id or "")
+                if (self.active_profile_id == profile_id and active is not None
+                        and active.capture_mode == "toggle"):
+                    self.stop_event.set()  # second press stops a toggle recording
+                    return
                 self.overlay_message.emit("busy...", _C_WARN, False, "none")
                 return
             self.is_recording = True
+            self.active_profile_id = profile_id
             self.stop_event.clear()
 
-        if self.profiles[profile_id].hotkey_beep:
-            gn_sounds.play_hotkey_beep()
-        self.overlay_message.emit("listening", _C_LISTENING, True, "dot")
+        profile = self.profiles[profile_id]
+        if profile.hotkey_beep:
+            gn_sounds.play_hotkey_beep(self._global.get("hotkey_beep_file") or None)
+        label = "recording" if profile.capture_mode == "toggle" else "listening"
+        self.overlay_message.emit(label, _C_LISTENING, True, "dot")
         threading.Thread(
             target=self._worker, args=(profile_id,), daemon=True
         ).start()
@@ -85,7 +96,9 @@ class Controller(QObject):
     def _worker(self, profile_id: str) -> None:
         try:
             profile = self.profiles[profile_id]
-            audio = gn_audio.record(self.stop_event, self._global, debug=self.debug)
+            audio = gn_audio.record(
+                self.stop_event, self._global, mode=profile.capture_mode, debug=self.debug
+            )
             if audio is None:
                 self.overlay_message.emit("(no note)", _C_MUTED, False, "none")
                 return
@@ -94,7 +107,7 @@ class Controller(QObject):
                 self.overlay_message.emit("(no speech)", _C_MUTED, False, "none")
                 return
             context = gn_profiles.read_context(self._global["context"])
-            gn_notes.append_note(profile, context, text)
+            self.last_note_path = gn_notes.append_note(profile, context, text)
             preview = text if len(text) <= 48 else text[:45] + "..."
             self.overlay_message.emit("saved: " + preview, _C_SAVED, False, "check")
         except gn_audio.AudioCaptureError:
@@ -105,6 +118,7 @@ class Controller(QObject):
         finally:
             with self.lock:
                 self.is_recording = False
+                self.active_profile_id = None
 
     # --- live settings updates ---------------------------------------------
 
@@ -127,3 +141,18 @@ class Controller(QObject):
 
     def current_context(self) -> str:
         return gn_profiles.read_context(self._global["context"])
+
+    # --- last note (for the tray "open" items) ------------------------------
+
+    def last_note_file(self) -> Path | None:
+        if self.last_note_path and self.last_note_path.exists():
+            return self.last_note_path
+        return None
+
+    def last_note_dir(self) -> Path | None:
+        if self.last_note_path and self.last_note_path.parent.exists():
+            return self.last_note_path.parent
+        for profile in self.profiles.values():
+            if profile.dest_root and Path(profile.dest_root).exists():
+                return Path(profile.dest_root)
+        return None

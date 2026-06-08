@@ -33,6 +33,7 @@ from PySide6.QtWidgets import (
     QGroupBox,
     QMessageBox,
     QFrame,
+    QFileDialog,
 )
 
 from .. import audio as gn_audio
@@ -111,6 +112,9 @@ class SettingsWindow(QDialog):
         self.beam_size = QSpinBox()
         self.beam_size.setRange(1, 10)
 
+        self.language = QLineEdit()
+        self.language.setPlaceholderText("en")
+
         self.input_device = QComboBox()
         self.input_device.addItem("System default", None)
         for index, name in gn_audio.list_input_devices():
@@ -150,6 +154,10 @@ class SettingsWindow(QDialog):
         self.overlay_hide_ms.setSingleStep(250)
 
         self.launch_sound = QCheckBox("Play an arming sound when ready")
+        self.launch_sound_file = QLineEdit()
+        self.launch_sound_file.setPlaceholderText("(default tone) custom .wav...")
+        self.hotkey_beep_file = QLineEdit()
+        self.hotkey_beep_file.setPlaceholderText("(default tone) custom .wav...")
 
         self.auto_update = QCheckBox("Automatically check for updates on launch")
 
@@ -173,7 +181,10 @@ class SettingsWindow(QDialog):
         mform = QFormLayout(model_box)
         mform.addRow("Model size", self.model_size)
         mform.addRow("Beam size", self.beam_size)
-        note = QLabel("Changing the model size reloads it (when no note is recording).")
+        mform.addRow("Language", self.language)
+        note = QLabel("Changing the model size reloads it (when no note is recording). "
+                      "Non-English needs a multilingual model (e.g. small, not small.en).")
+        note.setWordWrap(True)
         note.setStyleSheet("color: #888;")
         mform.addRow("", note)
 
@@ -200,7 +211,11 @@ class SettingsWindow(QDialog):
         sounds_box = QGroupBox("Sounds")
         sform = QFormLayout(sounds_box)
         sform.addRow("", self.launch_sound)
-        snote = QLabel("The per-hotkey beep is set on each profile.")
+        sform.addRow("Arming sound file", self._wav_picker(self.launch_sound_file))
+        sform.addRow("Hotkey beep file", self._wav_picker(self.hotkey_beep_file))
+        snote = QLabel("Sound files are optional .wav (blank = the built-in tone). "
+                       "The per-hotkey beep is enabled per profile.")
+        snote.setWordWrap(True)
         snote.setStyleSheet("color: #888;")
         sform.addRow("", snote)
 
@@ -276,6 +291,7 @@ class SettingsWindow(QDialog):
 
         self.model_size.setCurrentText(str(g.get("model_size", "small.en")))
         self.beam_size.setValue(int(g.get("beam_size", 1)))
+        self.language.setText(str(g.get("language", "en")))
 
         device = g.get("input_device", None)
         idx = self.input_device.findData(device)
@@ -293,11 +309,32 @@ class SettingsWindow(QDialog):
         self.overlay_enabled.setChecked(bool(overlay.get("enabled", True)))
         self.overlay_hide_ms.setValue(int(overlay.get("hide_ms", 2500)))
         self.launch_sound.setChecked(bool(g.get("launch_sound", True)))
+        self.launch_sound_file.setText(str(g.get("launch_sound_file", "")))
+        self.hotkey_beep_file.setText(str(g.get("hotkey_beep_file", "")))
         self.auto_update.setChecked(bool(g.get("auto_update", True)))
         self.log_level.setCurrentText(str(g.get("log_level", "INFO")))
 
         self.mic_meter.set_threshold(self.silence_threshold.value())
         self._sync_meter()
+
+    def _wav_picker(self, line_edit: QLineEdit) -> QWidget:
+        btn = QPushButton("Browse...")
+
+        def browse():
+            chosen, _ = QFileDialog.getOpenFileName(
+                self, "Choose a .wav file", line_edit.text() or "", "WAV audio (*.wav)"
+            )
+            if chosen:
+                line_edit.setText(chosen)
+
+        btn.clicked.connect(browse)
+        row = QHBoxLayout()
+        row.setContentsMargins(0, 0, 0, 0)
+        row.addWidget(line_edit, 1)
+        row.addWidget(btn)
+        wrapper = QWidget()
+        wrapper.setLayout(row)
+        return wrapper
 
     def _sync_meter(self, *_args) -> None:
         self.mic_meter.configure(
@@ -311,6 +348,7 @@ class SettingsWindow(QDialog):
         return {
             "model_size": self.model_size.currentText().strip(),
             "beam_size": self.beam_size.value(),
+            "language": self.language.text().strip() or "en",
             "input_device": self.input_device.currentData(),
             "sample_rate": self.sample_rate.value(),
             "frame_ms": self.frame_ms.value(),
@@ -324,6 +362,8 @@ class SettingsWindow(QDialog):
                 "hide_ms": self.overlay_hide_ms.value(),
             },
             "launch_sound": self.launch_sound.isChecked(),
+            "launch_sound_file": self.launch_sound_file.text().strip(),
+            "hotkey_beep_file": self.hotkey_beep_file.text().strip(),
             "auto_update": self.auto_update.isChecked(),
             "context": {
                 "value": self.context_value.text().strip(),

@@ -11,8 +11,11 @@
     "start_grace_seconds": 3.0,
     "min_seconds": 0.4,
     "max_seconds": 60.0,
+    "language": "en",
     "overlay": { "enabled": true, "hide_ms": 2500 },
     "launch_sound": true,
+    "launch_sound_file": "",
+    "hotkey_beep_file": "",
     "auto_update": true,
     "context": { "value": "", "source": "manual", "file_path": "" },
     "log_level": "INFO"
@@ -28,7 +31,8 @@
       "use_session_headers": true,
       "session_from_file": false,
       "session_file": "",
-      "hotkey_beep": true
+      "hotkey_beep": true,
+      "capture_mode": "vad"
     },
     {
       "id": "bugs",
@@ -40,7 +44,8 @@
       "use_session_headers": false,
       "session_from_file": false,
       "session_file": "",
-      "hotkey_beep": true
+      "hotkey_beep": true,
+      "capture_mode": "vad"
     },
     {
       "id": "daily",
@@ -52,7 +57,8 @@
       "use_session_headers": false,
       "session_from_file": false,
       "session_file": "",
-      "hotkey_beep": true
+      "hotkey_beep": true,
+      "capture_mode": "vad"
     }
   ]
 }

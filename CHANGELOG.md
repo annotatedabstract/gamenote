@@ -13,7 +13,24 @@ versioning.
 - Opt-in auto-update: checks GitHub Releases on launch and offers a one-click
   install. A "Check for updates..." item is always in the tray menu. On by
   default, toggleable in Settings.
+- Push-to-talk capture mode: per profile, press to start and press the same key
+  again to stop (the default stays auto-stop on silence).
+- "Open notes folder" and "Open last note" in the tray menu.
+- Transcription language setting (needs a multilingual model for non-English).
+- Custom .wav files for the arming sound and the hotkey beep (blank = the
+  built-in tones).
 - Test suite (pytest), ruff lint config, and GitHub Actions CI.
+
+### Changed
+- The model is no longer bundled in the installer; it downloads once on first
+  run to %LOCALAPPDATA% and persists across updates. The installer drops from
+  ~500 MB to ~25 MB, and updates are small.
+
+### Fixed
+- The log file now rotates (1 MB x 3) instead of growing without bound.
+- The updater verifies the downloaded installer's size before running it.
+- Audio capture falls back to the system default input device if the configured
+  one is unavailable.
 
 ## [1.1.0] - 2026-06-07
 

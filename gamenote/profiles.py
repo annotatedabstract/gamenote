@@ -60,6 +60,9 @@ class Profile:
     session_file: str = ""
     # Play the subtle beep when this profile's hotkey fires. On by default.
     hotkey_beep: bool = True
+    # "vad" = auto-stop on trailing silence; "toggle" = press to start, press
+    # the same key again to stop (push-to-talk style).
+    capture_mode: str = "vad"
 
     @classmethod
     def from_dict(cls, d: dict[str, Any]) -> "Profile":
@@ -74,6 +77,7 @@ class Profile:
             session_from_file=bool(d.get("session_from_file", False)),
             session_file=str(d.get("session_file", "")),
             hotkey_beep=bool(d.get("hotkey_beep", True)),
+            capture_mode="toggle" if str(d.get("capture_mode", "vad")) == "toggle" else "vad",
         )
 
     def to_dict(self) -> dict[str, Any]:
@@ -88,6 +92,7 @@ class Profile:
             "session_from_file": self.session_from_file,
             "session_file": self.session_file,
             "hotkey_beep": self.hotkey_beep,
+            "capture_mode": self.capture_mode,
         }
 
     # --- resolution -------------------------------------------------------

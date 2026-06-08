@@ -76,7 +76,9 @@ Or, from the folder build:
 1. Unzip the `gamenote` folder anywhere (for example your Desktop). Keep the
    folder intact; the exe needs the files beside it.
 2. Run `gamenote.exe`. It starts in the system tray (look for the icon near the
-   clock). The tooltip shows "loading" then "ready" once the model is warm.
+   clock). On the first run it downloads the speech model once (about 480 MB,
+   needs internet); the tray shows "downloading model" then "ready". The model is
+   cached and reused, so later launches and updates are fast.
 3. Right click the tray icon to set the context, pause or resume hotkeys, open
    settings, or quit.
 4. By default notes go to a `gamenote` folder in your Documents. Open Settings

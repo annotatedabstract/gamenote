@@ -34,15 +34,9 @@ for pkg in ("faster_whisper", "ctranslate2", "sounddevice", "av", "tokenizers"):
 # keyboard loads platform submodules dynamically (e.g. keyboard._winkeyboard).
 hiddenimports += collect_submodules("keyboard")
 
-# Bundle the model under models/small.en (skip the HF .cache metadata dir).
-model_dir = ROOT / "packaging" / "model_cache" / "small.en"
-if (model_dir / "model.bin").exists():
-    for f in model_dir.iterdir():
-        if f.is_file() and not f.name.startswith("."):
-            datas.append((str(f), "models/small.en"))
-else:
-    print("[gamenote.spec] WARNING: model not found at", model_dir,
-          "- the build will download on first run instead of bundling.")
+# The model is NOT bundled (keeps the installer small, ~25 MB). It downloads
+# once on first run to %LOCALAPPDATA%\gamenote\models and persists across
+# updates. See gamenote.transcribe.resolve_model_source.
 
 # App icon as data so the __file__-relative lookup in app.load_icon() works frozen.
 assets = ROOT / "gamenote" / "assets"
