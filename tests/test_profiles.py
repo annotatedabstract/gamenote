@@ -53,6 +53,12 @@ def test_sanitize_part():
     assert sanitize_part('a<b>:c"|?*') == "abc"
 
 
+def test_sanitize_part_guards_reserved_names():
+    assert sanitize_part("CON") == "_CON"
+    assert sanitize_part("nul.md") == "_nul.md"
+    assert sanitize_part("Console") == "Console"  # not reserved
+
+
 def test_validate_allows_relative_template():
     ok = Profile("c", "C", "f3", "d", r"{context}\notes.md")
     assert validate_profiles([ok]) == []

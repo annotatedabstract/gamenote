@@ -18,16 +18,28 @@ from typing import Any
 # spaces (also illegal at the end of a Windows name).
 _INVALID_CHARS = '<>:"/\\|?*'
 
+# Windows reserved device names; a file named like one of these (with or without
+# an extension) is special. Prefixing keeps a context like "CON" usable as a path.
+_RESERVED_NAMES = (
+    {"CON", "PRN", "AUX", "NUL"}
+    | {f"COM{i}" for i in range(1, 10)}
+    | {f"LPT{i}" for i in range(1, 10)}
+)
+
 # Where a note lands when {context} is used but the context is empty.
 DEFAULT_PLACEHOLDER = "_Unsorted"
 
 
 def sanitize_part(value: str) -> str:
     """Make ``value`` safe as a single Windows path component. Strips forbidden
-    characters and control characters, then trailing dots and spaces. Returns an
-    empty string if nothing survives (the caller decides on a fallback)."""
+    characters and control characters, then trailing dots and spaces, and guards
+    Windows reserved device names. Returns an empty string if nothing survives
+    (the caller decides on a fallback)."""
     cleaned = "".join(c for c in value if c not in _INVALID_CHARS and ord(c) >= 32)
-    return cleaned.strip().rstrip(" .")
+    cleaned = cleaned.strip().rstrip(" .")
+    if cleaned and cleaned.split(".", 1)[0].upper() in _RESERVED_NAMES:
+        cleaned = "_" + cleaned
+    return cleaned
 
 
 def format_offset(seconds: float) -> str:

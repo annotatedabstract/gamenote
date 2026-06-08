@@ -69,12 +69,14 @@ class HotkeyManager:
         self.paused = True
         log.info("Hotkeys paused")
 
-    def resume(self) -> None:
+    def resume(self) -> list[str]:
+        """Re-bind the stored mapping. Returns hotkeys that failed to bind (each
+        also logged), so a caller can surface them; empty list if not paused."""
         if not self.paused:
-            return
-        mapping = self._mapping
-        self.register(mapping)
+            return []
+        failed = self.register(self._mapping)
         log.info("Hotkeys resumed")
+        return failed
 
 
 def build_mapping(

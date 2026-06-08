@@ -17,6 +17,7 @@ import json
 import logging
 import tempfile
 import threading
+import urllib.parse
 import urllib.request
 from pathlib import Path
 
@@ -82,12 +83,18 @@ def check_latest(timeout: float = 10.0) -> UpdateInfo | None:
     for asset in data.get("assets", []):
         asset_name = str(asset.get("name", ""))
         if asset_name.lower().endswith(".exe"):
-            url = str(asset.get("browser_download_url", ""))
+            candidate = str(asset.get("browser_download_url", ""))
+            try:
+                _require_trusted_url(candidate)
+            except ValueError as e:
+                log.warning("Ignoring update asset: %s", e)
+                continue
+            url = candidate
             name = asset_name
             size = int(asset.get("size", 0) or 0)
             break
     if not url:
-        log.info("Newer release %s has no .exe asset; skipping.", tag)
+        log.info("Newer release %s has no usable .exe asset; skipping.", tag)
         return None
 
     version = ".".join(str(p) for p in parse_version(tag))
@@ -95,30 +102,52 @@ def check_latest(timeout: float = 10.0) -> UpdateInfo | None:
                       notes=str(data.get("body", "")))
 
 
+def _require_trusted_url(url: str) -> None:
+    """Reject anything that isn't an HTTPS URL on a GitHub host before we download
+    and run it. The installer is fetched over TLS from GitHub; this refuses an
+    http:// or off-host URL that a tampered/compromised API response could supply."""
+    parts = urllib.parse.urlparse(url)
+    host = (parts.hostname or "").lower()
+    trusted = host == "github.com" or host.endswith((".github.com", ".githubusercontent.com"))
+    if parts.scheme != "https" or not trusted:
+        raise ValueError(f"untrusted download URL: {url!r}")
+
+
 def download(url: str, expected_size: int | None = None, progress_cb=None,
              timeout: float = 30.0) -> Path:
-    """Download ``url`` into the temp dir and return the path. ``progress_cb`` (if
-    given) is called with (bytes_done, bytes_total). If ``expected_size`` is given
-    and the finished file does not match it, raises (guards a truncated download)."""
-    name = url.rsplit("/", 1)[-1] or "gamenote-setup.exe"
-    dest = Path(tempfile.gettempdir()) / name
+    """Download ``url`` (must be an HTTPS GitHub URL) to a fixed temp path and
+    return it. Writes to a ``.part`` file and atomically renames on success;
+    ``progress_cb`` (if given) gets (bytes_done, bytes_total). If ``expected_size``
+    is set and the finished file does not match, raises (guards a truncated
+    download). The partial file is removed on any failure."""
+    _require_trusted_url(url)
+    dest = Path(tempfile.gettempdir()) / "gamenote-setup.exe"
+    part = dest.with_suffix(".exe.part")
     req = urllib.request.Request(url, headers={"User-Agent": "gamenote-updater"})
-    with urllib.request.urlopen(req, timeout=timeout) as resp, open(dest, "wb") as f:
-        total = int(resp.headers.get("Content-Length", 0) or 0) or (expected_size or 0)
-        done = 0
-        while True:
-            chunk = resp.read(256 * 1024)
-            if not chunk:
-                break
-            f.write(chunk)
-            done += len(chunk)
-            if progress_cb is not None and total:
-                progress_cb(done, total)
+    try:
+        with urllib.request.urlopen(req, timeout=timeout) as resp, open(part, "wb") as f:
+            total = int(resp.headers.get("Content-Length", 0) or 0) or (expected_size or 0)
+            done = 0
+            while True:
+                chunk = resp.read(256 * 1024)
+                if not chunk:
+                    break
+                f.write(chunk)
+                done += len(chunk)
+                if progress_cb is not None and total:
+                    progress_cb(done, total)
 
-    actual = dest.stat().st_size
-    if expected_size and actual != expected_size:
-        raise OSError(f"download size mismatch: got {actual}, expected {expected_size}")
-    return dest
+        actual = part.stat().st_size
+        if expected_size and actual != expected_size:
+            raise OSError(f"download size mismatch: got {actual}, expected {expected_size}")
+        os.replace(part, dest)  # atomic; only a complete download becomes the .exe
+        return dest
+    except BaseException:
+        try:
+            part.unlink()
+        except OSError:
+            pass
+        raise
 
 
 def run_installer(path: str) -> None:

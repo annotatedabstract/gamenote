@@ -27,7 +27,9 @@ def test_check_latest_returns_info_when_newer(monkeypatch):
         "tag_name": "v9.9.9",
         "body": "notes",
         "assets": [{"name": "gamenote-setup-9.9.9.exe", "size": 123,
-                    "browser_download_url": "https://example/gamenote-setup-9.9.9.exe"}],
+                    "browser_download_url":
+                        "https://github.com/annotatedabstract/gamenote/releases/"
+                        "download/v9.9.9/gamenote-setup-9.9.9.exe"}],
     }
     monkeypatch.setattr(updater.urllib.request, "urlopen", _fake_urlopen(payload))
     info = updater.check_latest()
@@ -77,15 +79,29 @@ class _FakeResp:
         return False
 
 
+_GH_URL = "https://github.com/annotatedabstract/gamenote/releases/download/v9/setup.exe"
+
+
 def test_download_writes_file_and_passes_size_check(monkeypatch, tmp_path):
     monkeypatch.setattr(updater.tempfile, "gettempdir", lambda: str(tmp_path))
     monkeypatch.setattr(updater.urllib.request, "urlopen", lambda *a, **k: _FakeResp(b"abcd"))
-    path = updater.download("https://x/setup.exe", expected_size=4)
+    path = updater.download(_GH_URL, expected_size=4)
     assert path.read_bytes() == b"abcd"
+    assert path.name == "gamenote-setup.exe"               # fixed, sanitized name
+    assert not (tmp_path / "gamenote-setup.exe.part").exists()  # part renamed away
 
 
 def test_download_raises_on_size_mismatch(monkeypatch, tmp_path):
     monkeypatch.setattr(updater.tempfile, "gettempdir", lambda: str(tmp_path))
     monkeypatch.setattr(updater.urllib.request, "urlopen", lambda *a, **k: _FakeResp(b"abcd"))
     with pytest.raises(OSError):
-        updater.download("https://x/setup.exe", expected_size=999)
+        updater.download(_GH_URL, expected_size=999)
+    assert not (tmp_path / "gamenote-setup.exe.part").exists()  # partial cleaned up
+
+
+def test_download_rejects_untrusted_url(monkeypatch, tmp_path):
+    monkeypatch.setattr(updater.tempfile, "gettempdir", lambda: str(tmp_path))
+    with pytest.raises(ValueError):
+        updater.download("http://github.com/o/r/setup.exe")   # not https
+    with pytest.raises(ValueError):
+        updater.download("https://evil.example/setup.exe")    # not a GitHub host
