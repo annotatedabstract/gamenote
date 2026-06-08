@@ -175,6 +175,7 @@ def main() -> int:
                 log.error("Model load failed: %s", e)
                 controller.status_changed.emit("model error")
                 controller.launch_message.emit("model load failed", "#ffb3b3")
+
         threading.Thread(target=run, daemon=True).start()
 
     def on_apply(new_profiles: list) -> None:
@@ -196,7 +197,8 @@ def main() -> int:
         if transcriber.loaded_model_size and (size_changed or device_changed):
             if controller.is_recording:
                 QMessageBox.information(
-                    None, "gamenote",
+                    None,
+                    "gamenote",
                     "The model size or device change will apply next time you open "
                     "settings (a note is recording right now).",
                 )

@@ -68,8 +68,9 @@ def record(
     frame_dur = frame / sample_rate
 
     def _open(dev):
-        return sd.InputStream(samplerate=sample_rate, channels=1, dtype="float32",
-                              blocksize=frame, device=dev)
+        return sd.InputStream(
+            samplerate=sample_rate, channels=1, dtype="float32", blocksize=frame, device=dev
+        )
 
     # Open the configured device; if it is gone (unplugged / reindexed), fall
     # back to the system default rather than just failing.

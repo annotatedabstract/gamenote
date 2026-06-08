@@ -57,9 +57,9 @@ class UpdateInfo:
     def __init__(self, version: str, tag: str, url: str, name: str, size: int, notes: str) -> None:
         self.version = version
         self.tag = tag
-        self.url = url      # installer asset download URL
+        self.url = url  # installer asset download URL
         self.name = name
-        self.size = size    # expected byte size, for an integrity check
+        self.size = size  # expected byte size, for an integrity check
         self.notes = notes
 
 
@@ -98,8 +98,9 @@ def check_latest(timeout: float = 10.0) -> UpdateInfo | None:
         return None
 
     version = ".".join(str(p) for p in parse_version(tag))
-    return UpdateInfo(version=version, tag=tag, url=url, name=name, size=size,
-                      notes=str(data.get("body", "")))
+    return UpdateInfo(
+        version=version, tag=tag, url=url, name=name, size=size, notes=str(data.get("body", ""))
+    )
 
 
 def _require_trusted_url(url: str) -> None:
@@ -113,8 +114,9 @@ def _require_trusted_url(url: str) -> None:
         raise ValueError(f"untrusted download URL: {url!r}")
 
 
-def download(url: str, expected_size: int | None = None, progress_cb=None,
-             timeout: float = 30.0) -> Path:
+def download(
+    url: str, expected_size: int | None = None, progress_cb=None, timeout: float = 30.0
+) -> Path:
     """Download ``url`` (must be an HTTPS GitHub URL) to a fixed temp path and
     return it. Writes to a ``.part`` file and atomically renames on success;
     ``progress_cb`` (if given) gets (bytes_done, bytes_total). If ``expected_size``
@@ -159,11 +161,11 @@ class Updater(QObject):
     """Qt wrapper that runs the checks/downloads off-thread and reports back via
     queued signals (safe to connect to main-thread slots)."""
 
-    available = Signal(object)       # UpdateInfo
-    up_to_date = Signal(bool)        # manual? (True if the user asked)
-    failed = Signal(bool, str)       # manual?, message
-    progress = Signal(int, int)      # done, total
-    ready = Signal(str)              # downloaded installer path
+    available = Signal(object)  # UpdateInfo
+    up_to_date = Signal(bool)  # manual? (True if the user asked)
+    failed = Signal(bool, str)  # manual?, message
+    progress = Signal(int, int)  # done, total
+    ready = Signal(str)  # downloaded installer path
 
     def check_async(self, manual: bool = False) -> None:
         threading.Thread(target=self._check, args=(manual,), daemon=True).start()
@@ -184,8 +186,9 @@ class Updater(QObject):
 
     def _download(self, info: UpdateInfo) -> None:
         try:
-            path = download(info.url, expected_size=info.size,
-                            progress_cb=lambda d, t: self.progress.emit(d, t))
+            path = download(
+                info.url, expected_size=info.size, progress_cb=lambda d, t: self.progress.emit(d, t)
+            )
         except Exception as e:
             log.error("Update download failed: %s", e)
             self.failed.emit(True, str(e))

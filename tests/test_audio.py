@@ -37,8 +37,8 @@ def test_record_falls_back_to_default_device(monkeypatch):
         threading.Event(),
         _global(input_device=5, start_grace_seconds=0.1, max_seconds=1.0),
     )
-    assert out is None             # only silence -> no note, but no error raised
-    assert seen == [5, None]       # tried the configured device, then the default
+    assert out is None  # only silence -> no note, but no error raised
+    assert seen == [5, None]  # tried the configured device, then the default
 
 
 def test_record_raises_when_no_device_works(monkeypatch):

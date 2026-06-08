@@ -60,7 +60,7 @@ def _make_config():
 
 def _make_profiles():
     return [
-        Profile("editing", "Editing", "alt+f1", "d", "x.md"),                 # vad
+        Profile("editing", "Editing", "alt+f1", "d", "x.md"),  # vad
         Profile("push", "Push", "alt+f2", "d", "y.md", capture_mode="toggle"),  # toggle
     ]
 
@@ -131,8 +131,9 @@ def test_empty_transcript_files_nothing(qapp, monkeypatch):
 
 
 def test_mic_error_is_reported(qapp, monkeypatch):
-    ctl, msgs, calls = _build(monkeypatch, _FakeTranscriber(),
-                              record_exc=gn_audio.AudioCaptureError("boom"))
+    ctl, msgs, calls = _build(
+        monkeypatch, _FakeTranscriber(), record_exc=gn_audio.AudioCaptureError("boom")
+    )
     ctl.on_profile("editing")
     assert any("mic error" in m for m in msgs)
     assert ctl.is_recording is False  # finally still resets

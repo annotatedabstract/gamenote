@@ -22,6 +22,8 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements-dev.txt
       - name: Lint (ruff)
-        run: ruff check gamenote main.pyw tests
+        run: |
+          ruff check gamenote main.pyw tests
+          ruff format --check gamenote main.pyw tests
       - name: Test (pytest)
         run: pytest --cov=gamenote --cov-report=term-missing

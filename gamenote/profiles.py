@@ -185,9 +185,7 @@ class Profile:
             rendered = rendered.replace("{" + key + "}", value)
         return Path(self.dest_root) / rendered
 
-    def render_line(
-        self, text: str, now: datetime | None = None, clip: str | None = None
-    ) -> str:
+    def render_line(self, text: str, now: datetime | None = None, clip: str | None = None) -> str:
         """Render the appended line. A ``{clip}`` token in the prefix is replaced
         with the recording-segment offset (see :meth:`clip_offset`); when that is
         empty the token and any now-empty ``[]``/``()`` wrapper around it are
@@ -274,8 +272,7 @@ def validate_profiles(profiles: list[Profile]) -> list[str]:
         if p.hotkey:
             if p.hotkey in seen_hotkeys:
                 errors.append(
-                    f"hotkey '{p.hotkey}' is used by both "
-                    f"'{seen_hotkeys[p.hotkey]}' and '{label}'"
+                    f"hotkey '{p.hotkey}' is used by both '{seen_hotkeys[p.hotkey]}' and '{label}'"
                 )
             seen_hotkeys[p.hotkey] = label
 
@@ -284,7 +281,9 @@ def validate_profiles(profiles: list[Profile]) -> list[str]:
         if p.path_template:
             tmpl = PureWindowsPath(p.path_template.replace("/", "\\"))
             if tmpl.is_absolute() or tmpl.drive or p.path_template.startswith(("\\", "/")):
-                errors.append(f"{label}: path template must be relative (no drive or leading slash)")
+                errors.append(
+                    f"{label}: path template must be relative (no drive or leading slash)"
+                )
             if ".." in tmpl.parts:
                 errors.append(f"{label}: path template must not contain '..'")
 

@@ -23,5 +23,5 @@ def test_set_mapping_when_paused_does_not_register(monkeypatch):
     manager.paused = True
     failed = manager.set_mapping({"f1": lambda: None})
     assert failed == []
-    assert calls == []          # nothing bound while paused
+    assert calls == []  # nothing bound while paused
     assert "f1" in manager._mapping

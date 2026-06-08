@@ -26,8 +26,8 @@ from PySide6.QtWidgets import QHBoxLayout, QLabel, QVBoxLayout, QWidget
 log = logging.getLogger("gamenote.overlay")
 
 _MARGIN = 40  # gap from the top-right screen corner
-_CARD_BG = (30, 30, 30)          # #1e1e1e
-_DOT_BRIGHT = (159, 223, 255)    # cyan, matches the landing graphic
+_CARD_BG = (30, 30, 30)  # #1e1e1e
+_DOT_BRIGHT = (159, 223, 255)  # cyan, matches the landing graphic
 _CHECK_GREEN = "#8ef0a0"
 
 
@@ -37,10 +37,7 @@ class Overlay(QWidget):
         self.hide_ms = hide_ms
 
         self.setWindowFlags(
-            Qt.FramelessWindowHint
-            | Qt.WindowStaysOnTopHint
-            | Qt.Tool
-            | Qt.WindowDoesNotAcceptFocus
+            Qt.FramelessWindowHint | Qt.WindowStaysOnTopHint | Qt.Tool | Qt.WindowDoesNotAcceptFocus
         )
         self.setAttribute(Qt.WA_ShowWithoutActivating, True)
         self.setAttribute(Qt.WA_TranslucentBackground, True)
@@ -96,7 +93,7 @@ class Overlay(QWidget):
         self._apply_noactivate()
 
     def _set_style(self, fg: str, large: bool = False) -> None:
-        size = 24 if large else 12       # launch messages ~2x for visibility
+        size = 24 if large else 12  # launch messages ~2x for visibility
         weight = 600 if large else 400
         radius = 10 if large else 6
         vmar, hmar = (12, 22) if large else (8, 14)
@@ -163,8 +160,9 @@ class Overlay(QWidget):
         y = geo.top() + _MARGIN
         self.move(x, y)
 
-    def _show(self, text: str, color: str, persistent: bool, large: bool,
-              indicator: str = "none") -> None:
+    def _show(
+        self, text: str, color: str, persistent: bool, large: bool, indicator: str = "none"
+    ) -> None:
         self._set_style(color, large)
         self._label.setText(text)
         self._set_indicator(indicator)
@@ -179,8 +177,9 @@ class Overlay(QWidget):
             self._hide_timer.start(self.hide_ms)
 
     @Slot(str, str, bool, str)
-    def show_message(self, text: str, color: str = "#ffffff", persistent: bool = False,
-                     indicator: str = "none") -> None:
+    def show_message(
+        self, text: str, color: str = "#ffffff", persistent: bool = False, indicator: str = "none"
+    ) -> None:
         self._show(text, color, persistent, large=False, indicator=indicator)
 
     @Slot(str, str)

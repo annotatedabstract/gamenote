@@ -126,6 +126,7 @@ def model_available(model_size: str) -> bool:
         return True
     try:
         from faster_whisper.utils import _MODELS  # repo id per size, e.g. Systran/...
+
         repo = _MODELS.get(model_size)
     except Exception:
         repo = None
@@ -195,8 +196,12 @@ class Transcriber:
             except Exception as e:
                 last_exc = e
                 if i + 1 < len(attempts):
-                    log.warning("%s path unavailable (%s). Falling back to %s.",
-                                device.upper(), e, attempts[i + 1][0].upper())
+                    log.warning(
+                        "%s path unavailable (%s). Falling back to %s.",
+                        device.upper(),
+                        e,
+                        attempts[i + 1][0].upper(),
+                    )
                 else:
                     log.error("%s path unavailable (%s).", device.upper(), e)
                 continue

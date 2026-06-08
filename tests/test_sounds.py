@@ -23,6 +23,7 @@ def test_cues_are_valid_float32_audio():
 def test_play_never_raises(monkeypatch):
     def boom(*a, **k):
         raise RuntimeError("no output device")
+
     monkeypatch.setattr(sounds.sd, "play", boom)
     # Must be swallowed, not propagated.
     sounds.play_arming()
@@ -42,7 +43,9 @@ def test_play_uses_custom_file(monkeypatch, tmp_path):
     wav = tmp_path / "b.wav"
     _write_wav(wav, rate=16000, frames=64)
     played = {}
-    monkeypatch.setattr(sounds.sd, "play", lambda data, rate, **k: played.update(rate=rate, n=len(data)))
+    monkeypatch.setattr(
+        sounds.sd, "play", lambda data, rate, **k: played.update(rate=rate, n=len(data))
+    )
     sounds.play_arming(str(wav))
     assert played == {"rate": 16000, "n": 64}
 

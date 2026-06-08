@@ -29,10 +29,10 @@ def test_merge_backfills_missing_keys(appdata):
     path.write_text(json.dumps(partial), encoding="utf-8")
 
     cfg = config.load_config()
-    assert cfg["global"]["model_size"] == "base.en"   # user value preserved
-    assert cfg["global"]["launch_sound"] is True       # backfilled from defaults
-    assert cfg["global"]["auto_update"] is True        # backfilled
-    assert cfg["profiles"][0]["id"] == "x"             # user profiles taken as-is
+    assert cfg["global"]["model_size"] == "base.en"  # user value preserved
+    assert cfg["global"]["launch_sound"] is True  # backfilled from defaults
+    assert cfg["global"]["auto_update"] is True  # backfilled
+    assert cfg["profiles"][0]["id"] == "x"  # user profiles taken as-is
 
 
 def test_save_roundtrip(appdata):
@@ -77,18 +77,16 @@ def test_load_recovers_from_corrupt_json(appdata):
     path.write_text("{ this is not valid json ", encoding="utf-8")
 
     cfg = config.load_config()
-    assert cfg["version"] == config.CONFIG_VERSION          # fell back to defaults
-    assert path.with_suffix(".json.bad").exists()           # corrupt file preserved
-    assert path.exists()                                    # fresh defaults written
+    assert cfg["version"] == config.CONFIG_VERSION  # fell back to defaults
+    assert path.with_suffix(".json.bad").exists()  # corrupt file preserved
+    assert path.exists()  # fresh defaults written
 
 
 def test_load_guards_non_dict_global(appdata):
     path = config.config_path()
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(
-        json.dumps({"version": 1, "global": "oops", "profiles": []}), encoding="utf-8"
-    )
+    path.write_text(json.dumps({"version": 1, "global": "oops", "profiles": []}), encoding="utf-8")
 
     cfg = config.load_config()
-    assert isinstance(cfg["global"], dict)                  # reset from the bad scalar
+    assert isinstance(cfg["global"], dict)  # reset from the bad scalar
     assert cfg["global"]["model_size"] == "small.en"

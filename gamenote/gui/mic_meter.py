@@ -45,8 +45,13 @@ class _MeterWorker(QObject):
 
     def run(self) -> None:
         try:
-            with sd.InputStream(samplerate=self.sample_rate, channels=1, dtype="float32",
-                                blocksize=self.frame, device=self.device) as stream:
+            with sd.InputStream(
+                samplerate=self.sample_rate,
+                channels=1,
+                dtype="float32",
+                blocksize=self.frame,
+                device=self.device,
+            ) as stream:
                 while not self._stop.is_set():
                     block, _ = stream.read(self.frame)
                     value = float(np.sqrt(np.mean(np.square(block))))

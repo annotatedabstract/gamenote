@@ -37,9 +37,9 @@ _C_ERROR = "#ffb3b3"
 
 class Controller(QObject):
     overlay_message = Signal(str, str, bool, str)  # text, color, persistent, indicator
-    launch_message = Signal(str, str)         # text, color (large launch-time variant)
-    status_changed = Signal(str)              # short status for the tray tooltip
-    trigger = Signal(str)                     # profile id, emitted from the hotkey thread
+    launch_message = Signal(str, str)  # text, color (large launch-time variant)
+    status_changed = Signal(str)  # short status for the tray tooltip
+    trigger = Signal(str)  # profile id, emitted from the hotkey thread
 
     def __init__(self, transcriber: Transcriber, profiles: list, config: dict) -> None:
         super().__init__()
@@ -75,8 +75,11 @@ class Controller(QObject):
         with self.lock:
             if self.is_recording:
                 active = self.profiles.get(self.active_profile_id or "")
-                if (self.active_profile_id == profile_id and active is not None
-                        and active.capture_mode == "toggle"):
+                if (
+                    self.active_profile_id == profile_id
+                    and active is not None
+                    and active.capture_mode == "toggle"
+                ):
                     self.stop_event.set()  # second press stops a toggle recording
                     return
                 self.overlay_message.emit("busy...", _C_WARN, False, "none")
@@ -90,9 +93,7 @@ class Controller(QObject):
             gn_sounds.play_hotkey_beep(self._global.get("hotkey_beep_file") or None)
         label = "recording" if profile.capture_mode == "toggle" else "listening"
         self.overlay_message.emit(label, _C_LISTENING, True, "dot")
-        threading.Thread(
-            target=self._worker, args=(profile_id,), daemon=True
-        ).start()
+        threading.Thread(target=self._worker, args=(profile_id,), daemon=True).start()
 
     # --- blocking work (runs on a worker thread) ---------------------------
 

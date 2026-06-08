@@ -100,7 +100,9 @@ class ProfileEditor(QWidget):
         self.use_session_headers = QCheckBox("Write session headers")
 
         # Legacy: source the session header value from a .current_session file.
-        self.session_from_file = QCheckBox("Read session value from a file (legacy OBS .current_session)")
+        self.session_from_file = QCheckBox(
+            "Read session value from a file (legacy OBS .current_session)"
+        )
         self.session_file = QLineEdit()
         sf_browse = QPushButton("Browse...")
         sf_browse.clicked.connect(self._browse_session_file)
@@ -125,9 +127,11 @@ class ProfileEditor(QWidget):
         cf_row.addWidget(cf_browse)
         self.clip_file_widget = QWidget()
         self.clip_file_widget.setLayout(cf_row)
-        self.clip_hint = QLabel('Reads gamenote-obs.json (see integrations/obs). Put '
-                                '{clip} in the line prefix, e.g. "[{clip}] ". Omitted '
-                                'when no recording is active.')
+        self.clip_hint = QLabel(
+            "Reads gamenote-obs.json (see integrations/obs). Put "
+            '{clip} in the line prefix, e.g. "[{clip}] ". Omitted '
+            "when no recording is active."
+        )
         self.clip_hint.setWordWrap(True)
         self.clip_hint.setStyleSheet("color: #888;")
 
@@ -206,9 +210,16 @@ class ProfileEditor(QWidget):
             self.clip_file.setText(profile.clip_file)
             self.hotkey_beep.setChecked(profile.hotkey_beep)
         else:
-            for w in (self.name, self.hotkey, self.dest_root, self.path_template,
-                      self.timestamp_format, self.prefix, self.session_file,
-                      self.clip_file):
+            for w in (
+                self.name,
+                self.hotkey,
+                self.dest_root,
+                self.path_template,
+                self.timestamp_format,
+                self.prefix,
+                self.session_file,
+                self.clip_file,
+            ):
                 w.clear()
         self._loading = False
         self._sync_session_enable()
@@ -289,19 +300,23 @@ class ProfileEditor(QWidget):
         if self._profile is None:
             return
         label = self._profile.name or self._profile.id
-        if QMessageBox.question(
-            self, "Restore profile defaults",
-            f"Reset '{label}' to its default settings?",
-        ) != QMessageBox.Yes:
+        if (
+            QMessageBox.question(
+                self,
+                "Restore profile defaults",
+                f"Reset '{label}' to its default settings?",
+            )
+            != QMessageBox.Yes
+        ):
             return
 
         defaults = gn_config.default_profile_dict(self._profile.id)
         if defaults is not None:
-            src = Profile.from_dict(defaults)           # shipped profile: full reset
+            src = Profile.from_dict(defaults)  # shipped profile: full reset
             reset_identity = True
         else:
             src = Profile.from_dict(gn_config.default_config()["profiles"][0])
-            reset_identity = False                      # custom: keep name/hotkey
+            reset_identity = False  # custom: keep name/hotkey
 
         p = self._profile
         if reset_identity:

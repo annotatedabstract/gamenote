@@ -110,9 +110,7 @@ class SettingsWindow(QDialog):
         self.context_value = QLineEdit()
         self.context_from_file = QCheckBox("Read context from a file instead")
         self.context_file_path = QLineEdit()
-        self.context_from_file.toggled.connect(
-            lambda on: self.context_file_path.setEnabled(on)
-        )
+        self.context_from_file.toggled.connect(lambda on: self.context_file_path.setEnabled(on))
 
         self.model_size = QComboBox()
         self.model_size.setEditable(True)
@@ -196,10 +194,12 @@ class SettingsWindow(QDialog):
         mform.addRow("Beam size", self.beam_size)
         mform.addRow("Language", self.language)
         mform.addRow("Device", self.device)
-        note = QLabel("Changing the model size or device reloads the model (when no "
-                      "note is recording). Non-English needs a multilingual model "
-                      "(e.g. small, not small.en). GPU needs the NVIDIA CUDA libraries "
-                      "installed; otherwise it runs on CPU.")
+        note = QLabel(
+            "Changing the model size or device reloads the model (when no "
+            "note is recording). Non-English needs a multilingual model "
+            "(e.g. small, not small.en). GPU needs the NVIDIA CUDA libraries "
+            "installed; otherwise it runs on CPU."
+        )
         note.setWordWrap(True)
         note.setStyleSheet("color: #888;")
         mform.addRow("", note)
@@ -229,8 +229,10 @@ class SettingsWindow(QDialog):
         sform.addRow("", self.launch_sound)
         sform.addRow("Arming sound file", self._wav_picker(self.launch_sound_file))
         sform.addRow("Hotkey beep file", self._wav_picker(self.hotkey_beep_file))
-        snote = QLabel("Sound files are optional .wav (blank = the built-in tone). "
-                       "The per-hotkey beep is enabled per profile.")
+        snote = QLabel(
+            "Sound files are optional .wav (blank = the built-in tone). "
+            "The per-hotkey beep is enabled per profile."
+        )
         snote.setWordWrap(True)
         snote.setStyleSheet("color: #888;")
         sform.addRow("", snote)
@@ -248,8 +250,16 @@ class SettingsWindow(QDialog):
 
         inner = QWidget()
         layout = QVBoxLayout(inner)
-        for box in (context_box, model_box, audio_box, vad_box, overlay_box,
-                    sounds_box, updates_box, misc_box):
+        for box in (
+            context_box,
+            model_box,
+            audio_box,
+            vad_box,
+            overlay_box,
+            sounds_box,
+            updates_box,
+            misc_box,
+        ):
             layout.addWidget(box)
         layout.addStretch(1)
 
@@ -270,14 +280,22 @@ class SettingsWindow(QDialog):
         guard = _WheelGuard(scroll)
         combos = (self.model_size, self.device, self.input_device, self.log_level)
         spins = (
-            self.beam_size, self.sample_rate, self.frame_ms,
-            self.silence_threshold, self.silence_seconds, self.start_grace_seconds,
-            self.min_seconds, self.max_seconds, self.overlay_hide_ms,
+            self.beam_size,
+            self.sample_rate,
+            self.frame_ms,
+            self.silence_threshold,
+            self.silence_seconds,
+            self.start_grace_seconds,
+            self.min_seconds,
+            self.max_seconds,
+            self.overlay_hide_ms,
         )
         for combo in combos:
             combo.setFocusPolicy(Qt.StrongFocus)
             combo.installEventFilter(guard)
-            combo.setSizeAdjustPolicy(QComboBox.SizeAdjustPolicy.AdjustToMinimumContentsLengthWithIcon)
+            combo.setSizeAdjustPolicy(
+                QComboBox.SizeAdjustPolicy.AdjustToMinimumContentsLengthWithIcon
+            )
             combo.setMinimumContentsLength(12)
         # The device list can be long; show full names in the popup but elide in the box.
         self.input_device.view().setTextElideMode(Qt.ElideRight)
@@ -290,10 +308,14 @@ class SettingsWindow(QDialog):
         self._populate_global(self.cfg["global"])
 
     def _restore_global_defaults(self) -> None:
-        if QMessageBox.question(
-            self, "Restore global defaults",
-            "Reset all global settings to their defaults?",
-        ) != QMessageBox.Yes:
+        if (
+            QMessageBox.question(
+                self,
+                "Restore global defaults",
+                "Reset all global settings to their defaults?",
+            )
+            != QMessageBox.Yes
+        ):
             return
         self._populate_global(default_global())
 

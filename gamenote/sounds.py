@@ -64,13 +64,15 @@ def _silence(dur: float) -> np.ndarray:
 
 
 # Arming: a C major arpeggio (C5, E5, G5) that reads as "ready".
-_ARMING = np.concatenate([
-    _tone(523.25, 0.09, 0.22),
-    _silence(0.02),
-    _tone(659.25, 0.09, 0.22),
-    _silence(0.02),
-    _tone(783.99, 0.13, 0.24),
-]).astype(np.float32)
+_ARMING = np.concatenate(
+    [
+        _tone(523.25, 0.09, 0.22),
+        _silence(0.02),
+        _tone(659.25, 0.09, 0.22),
+        _silence(0.02),
+        _tone(783.99, 0.13, 0.24),
+    ]
+).astype(np.float32)
 
 # Hotkey: a single quiet, short blip.
 _BEEP = _tone(880.0, 0.055, 0.12)

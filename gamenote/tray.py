@@ -107,15 +107,11 @@ class Tray(QObject):
 
         open_folder = QAction("Open notes folder", self.menu)
         open_folder.setEnabled(self.controller.last_note_dir() is not None)
-        open_folder.triggered.connect(
-            lambda: self._open_path(self.controller.last_note_dir())
-        )
+        open_folder.triggered.connect(lambda: self._open_path(self.controller.last_note_dir()))
         self.menu.addAction(open_folder)
         open_last = QAction("Open last note", self.menu)
         open_last.setEnabled(self.controller.last_note_file() is not None)
-        open_last.triggered.connect(
-            lambda: self._open_path(self.controller.last_note_file())
-        )
+        open_last.triggered.connect(lambda: self._open_path(self.controller.last_note_file()))
         self.menu.addAction(open_last)
 
         self.pause_action = QAction("Pause hotkeys", self.menu)

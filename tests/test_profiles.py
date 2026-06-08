@@ -19,10 +19,15 @@ def _obs_sidecar(tmp_path, **fields):
 
 
 def test_to_from_dict_roundtrip():
-    p = Profile.from_dict({
-        "id": "e", "name": "E", "hotkey": "alt+f1",
-        "dest_root": r"C:\notes", "path_template": "{context}.md",
-    })
+    p = Profile.from_dict(
+        {
+            "id": "e",
+            "name": "E",
+            "hotkey": "alt+f1",
+            "dest_root": r"C:\notes",
+            "path_template": "{context}.md",
+        }
+    )
     d = p.to_dict()
     assert Profile.from_dict(d).to_dict() == d
     assert "session_from_file" in d and "session_file" in d and "hotkey_beep" in d
@@ -34,10 +39,11 @@ def test_to_from_dict_roundtrip():
 
 def test_resolve_path_tokens_and_sanitization():
     now = datetime.datetime(2026, 6, 7, 14, 8, 22)
-    p = Profile("editing", "E", "alt+f1", r"C:\notes",
-                r"{context}\{profile}_{date}_{time}.md", LineFormat())
+    p = Profile(
+        "editing", "E", "alt+f1", r"C:\notes", r"{context}\{profile}_{date}_{time}.md", LineFormat()
+    )
     s = str(p.resolve_path("Disco: Elysium", now))
-    assert "Disco Elysium" in s          # forbidden ':' stripped
+    assert "Disco Elysium" in s  # forbidden ':' stripped
     assert "editing" in s
     assert "2026-06-07" in s and "14-08-22" in s
 
@@ -91,8 +97,9 @@ def test_session_header_from_file(tmp_path):
 
 def test_session_header_falls_back_to_date(tmp_path):
     now = datetime.datetime(2026, 6, 7, 0, 0, 0)
-    p = Profile("e", "E", "f1", "d", "x.md",
-                session_from_file=True, session_file=str(tmp_path / "missing"))
+    p = Profile(
+        "e", "E", "f1", "d", "x.md", session_from_file=True, session_file=str(tmp_path / "missing")
+    )
     assert p.session_header_value(now) == "2026-06-07"
 
 
@@ -129,11 +136,13 @@ def test_clip_offset_omitted_when_not_recording(tmp_path):
 
 
 def test_clip_offset_omitted_when_disabled_or_missing(tmp_path):
-    disabled = Profile("e", "E", "f1", "d", "x.md",
-                       clip_from_file=False, clip_file=str(tmp_path / "x.json"))
+    disabled = Profile(
+        "e", "E", "f1", "d", "x.md", clip_from_file=False, clip_file=str(tmp_path / "x.json")
+    )
     assert disabled.clip_offset() == ""
-    missing = Profile("e", "E", "f1", "d", "x.md",
-                      clip_from_file=True, clip_file=str(tmp_path / "missing.json"))
+    missing = Profile(
+        "e", "E", "f1", "d", "x.md", clip_from_file=True, clip_file=str(tmp_path / "missing.json")
+    )
     assert missing.clip_offset() == ""
 
 
@@ -146,27 +155,48 @@ def test_clip_offset_negative_is_omitted(tmp_path):
 
 def test_render_line_with_clip_token(tmp_path):
     f = _obs_sidecar(tmp_path, file_start="2026-06-08_14-16-55", recording=True)
-    p = Profile("e", "E", "f1", "d", "x.md",
-                LineFormat("%Y-%m-%d %H:%M:%S", "[{clip}] "),
-                clip_from_file=True, clip_file=str(f))
+    p = Profile(
+        "e",
+        "E",
+        "f1",
+        "d",
+        "x.md",
+        LineFormat("%Y-%m-%d %H:%M:%S", "[{clip}] "),
+        clip_from_file=True,
+        clip_file=str(f),
+    )
     now = datetime.datetime(2026, 6, 8, 14, 23, 7)
     assert p.render_line("note text", now) == "- [2026-06-08 14:23:07] [06:12] note text\n"
 
 
 def test_render_line_omits_empty_clip_token(tmp_path):
     f = _obs_sidecar(tmp_path, recording=False)  # no live position
-    p = Profile("e", "E", "f1", "d", "x.md",
-                LineFormat("%Y-%m-%d %H:%M:%S", "[{clip}] "),
-                clip_from_file=True, clip_file=str(f))
+    p = Profile(
+        "e",
+        "E",
+        "f1",
+        "d",
+        "x.md",
+        LineFormat("%Y-%m-%d %H:%M:%S", "[{clip}] "),
+        clip_from_file=True,
+        clip_file=str(f),
+    )
     now = datetime.datetime(2026, 6, 8, 14, 23, 7)
     # the {clip} token and its now-empty [] wrapper are removed
     assert p.render_line("note text", now) == "- [2026-06-08 14:23:07] note text\n"
 
 
 def test_render_line_clip_alongside_other_prefix(tmp_path):
-    p = Profile("b", "Bugs", "f2", "d", "x.md",
-                LineFormat("%H:%M:%S", "[bug] [{clip}] "),
-                clip_from_file=True, clip_file=str(tmp_path / "missing.json"))
+    p = Profile(
+        "b",
+        "Bugs",
+        "f2",
+        "d",
+        "x.md",
+        LineFormat("%H:%M:%S", "[bug] [{clip}] "),
+        clip_from_file=True,
+        clip_file=str(tmp_path / "missing.json"),
+    )
     now = datetime.datetime(2026, 6, 8, 1, 2, 3)
     # missing sidecar -> {clip} omitted, the literal [bug] prefix is preserved
     assert p.render_line("x", now) == "- [01:02:03] [bug] x\n"
@@ -179,8 +209,12 @@ def test_render_line_accepts_injected_clip():
 
 
 def test_session_header_from_json_sidecar(tmp_path):
-    f = _obs_sidecar(tmp_path, session_start="2026-05-31_14-02-10",
-                     file_start="2026-05-31_14-20-00", recording=True)
+    f = _obs_sidecar(
+        tmp_path,
+        session_start="2026-05-31_14-02-10",
+        file_start="2026-05-31_14-20-00",
+        recording=True,
+    )
     p = Profile("e", "E", "f1", "d", "x.md", session_from_file=True, session_file=str(f))
     assert p.session_header_value() == "2026-05-31_14-02-10"
 
