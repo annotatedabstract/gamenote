@@ -1,6 +1,6 @@
-# Dev/test dependencies. The tests cover the pure logic and do not import the
-# transcription backend, so faster-whisper is intentionally omitted here to keep
-# CI fast. Install the full runtime from requirements.txt to run the app.
+# Dev/test dependencies. The runtime backend (faster-whisper) is intentionally
+# omitted to keep CI fast: gamenote.transcribe imports it lazily, and the tests
+# that exercise model loading stub it. Install requirements.txt to run the app.
 PySide6>=6.6
 sounddevice>=0.4
 numpy>=1.24

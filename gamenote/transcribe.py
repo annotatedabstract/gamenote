@@ -12,6 +12,10 @@ import os
 import sys
 import logging
 from pathlib import Path
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:  # annotations only; the real import is lazy in Transcriber.load()
+    from faster_whisper import WhisperModel
 
 log = logging.getLogger("gamenote.transcribe")
 
@@ -57,9 +61,11 @@ def _add_nvidia_dll_dirs() -> None:
 
 _add_nvidia_dll_dirs()
 
-# These must load after the NVIDIA DLL dirs are registered above.
+# numpy loads after the NVIDIA DLL dirs are registered above. faster-whisper is
+# imported lazily in Transcriber.load() so that importing this module (for the
+# pure _device_attempts logic, or via the controller in tests) does not require
+# the heavy backend to be installed.
 import numpy as np  # noqa: E402
-from faster_whisper import WhisperModel  # noqa: E402
 
 
 def nvidia_dll_dirs() -> list[str]:
@@ -173,6 +179,8 @@ class Transcriber:
         ``_device_attempts``). Returns the device actually used. Raises only if
         every configured attempt fails (e.g. a corrupt model, or forced CPU that
         cannot initialize)."""
+        from faster_whisper import WhisperModel  # lazy import keeps module load light
+
         model_size = self.cfg["model_size"]
         device_pref = str(self.cfg.get("device", "auto")).strip().lower()
         source, extra = resolve_model_source(model_size)
