@@ -6,6 +6,8 @@ versioning.
 
 ## [Unreleased]
 
+## [1.3.0] - 2026-06-08
+
 ### Added
 - Recording position in notes: a per-profile "Stamp recording position from an
   OBS file" option adds a `{clip}` prefix token that expands to how far into the
@@ -83,7 +85,8 @@ versioning.
   transcription, a focus-safe overlay, and a per-user installer with the
   small.en model bundled (CPU by default).
 
-[Unreleased]: https://github.com/annotatedabstract/gamenote/compare/v1.2.0...HEAD
+[Unreleased]: https://github.com/annotatedabstract/gamenote/compare/v1.3.0...HEAD
+[1.3.0]: https://github.com/annotatedabstract/gamenote/releases/tag/v1.3.0
 [1.2.0]: https://github.com/annotatedabstract/gamenote/releases/tag/v1.2.0
 [1.1.0]: https://github.com/annotatedabstract/gamenote/releases/tag/v1.1.0
 [1.0.0]: https://github.com/annotatedabstract/gamenote/releases/tag/v1.0.0
