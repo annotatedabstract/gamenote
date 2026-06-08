@@ -94,8 +94,8 @@ def load_icon() -> QIcon:
 def main() -> int:
     guard = single_instance_guard()
     if guard is None:
-        # Use a throwaway app so we can show a native message box.
-        tmp = QApplication.instance() or QApplication(sys.argv)
+        # Need a QApplication so we can show a native message box.
+        QApplication.instance() or QApplication(sys.argv)
         QMessageBox.warning(None, "gamenote", "gamenote is already running.")
         return 1
 

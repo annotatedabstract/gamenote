@@ -97,8 +97,6 @@ class SettingsWindow(QDialog):
     # --- Global tab --------------------------------------------------------
 
     def _build_global_tab(self) -> QWidget:
-        g = self.cfg["global"]
-
         self.context_value = QLineEdit()
         self.context_from_file = QCheckBox("Read context from a file instead")
         self.context_file_path = QLineEdit()

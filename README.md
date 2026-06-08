@@ -1,5 +1,7 @@
 # gamenote
 
+[![CI](https://github.com/annotatedabstract/gamenote/actions/workflows/ci.yml/badge.svg)](https://github.com/annotatedabstract/gamenote/actions/workflows/ci.yml)
+
 Push-to-note voice capture for gameplay recording sessions. Press a hotkey (sent
 by a Stream Deck key, or any key in the F13 to F24 range), speak a note, and it
 transcribes locally and appends a timestamped line to a notes file. The app
@@ -174,6 +176,17 @@ python main.pyw         # with a console, useful for logs
 
 For the GPU path from source, also `pip install nvidia-cublas-cu12 nvidia-cudnn-cu12`.
 The app tries CUDA at launch and falls back to CPU automatically.
+
+### Tests and lint
+
+```
+pip install -r requirements-dev.txt
+ruff check gamenote main.pyw tests
+pytest
+```
+
+The tests cover the pure logic (config, profiles, path resolver, notes, updater,
+sounds, hotkeys) and run in CI on every push.
 
 ## Support
 

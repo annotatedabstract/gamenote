@@ -57,8 +57,9 @@ def _add_nvidia_dll_dirs() -> None:
 
 _add_nvidia_dll_dirs()
 
-import numpy as np
-from faster_whisper import WhisperModel
+# These must load after the NVIDIA DLL dirs are registered above.
+import numpy as np  # noqa: E402
+from faster_whisper import WhisperModel  # noqa: E402
 
 
 def nvidia_dll_dirs() -> list[str]:
