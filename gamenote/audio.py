@@ -64,9 +64,27 @@ def record(
     elapsed = 0.0
     frame_dur = frame / sample_rate
 
+    def _open(dev):
+        return sd.InputStream(samplerate=sample_rate, channels=1, dtype="float32",
+                              blocksize=frame, device=dev)
+
+    # Open the configured device; if it is gone (unplugged / reindexed), fall
+    # back to the system default rather than just failing.
     try:
-        with sd.InputStream(samplerate=sample_rate, channels=1, dtype="float32",
-                            blocksize=frame, device=device) as stream:
+        stream = _open(device)
+    except Exception as e:
+        if device is None:
+            log.error("Could not open input stream: %s", e)
+            raise AudioCaptureError(str(e)) from e
+        log.warning("Input device %r unavailable (%s); using the system default.", device, e)
+        try:
+            stream = _open(None)
+        except Exception as e2:
+            log.error("Could not open default input stream: %s", e2)
+            raise AudioCaptureError(str(e2)) from e2
+
+    try:
+        with stream:
             while True:
                 if stop_event.is_set():
                     break

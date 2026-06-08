@@ -53,11 +53,12 @@ def parse_version(s: str) -> tuple[int, int, int]:
 
 
 class UpdateInfo:
-    def __init__(self, version: str, tag: str, url: str, name: str, notes: str) -> None:
+    def __init__(self, version: str, tag: str, url: str, name: str, size: int, notes: str) -> None:
         self.version = version
         self.tag = tag
         self.url = url      # installer asset download URL
         self.name = name
+        self.size = size    # expected byte size, for an integrity check
         self.notes = notes
 
 
@@ -77,28 +78,33 @@ def check_latest(timeout: float = 10.0) -> UpdateInfo | None:
         return None
 
     url = name = ""
+    size = 0
     for asset in data.get("assets", []):
         asset_name = str(asset.get("name", ""))
         if asset_name.lower().endswith(".exe"):
             url = str(asset.get("browser_download_url", ""))
             name = asset_name
+            size = int(asset.get("size", 0) or 0)
             break
     if not url:
         log.info("Newer release %s has no .exe asset; skipping.", tag)
         return None
 
     version = ".".join(str(p) for p in parse_version(tag))
-    return UpdateInfo(version=version, tag=tag, url=url, name=name, notes=str(data.get("body", "")))
+    return UpdateInfo(version=version, tag=tag, url=url, name=name, size=size,
+                      notes=str(data.get("body", "")))
 
 
-def download(url: str, progress_cb=None, timeout: float = 30.0) -> Path:
+def download(url: str, expected_size: int | None = None, progress_cb=None,
+             timeout: float = 30.0) -> Path:
     """Download ``url`` into the temp dir and return the path. ``progress_cb`` (if
-    given) is called with (bytes_done, bytes_total)."""
+    given) is called with (bytes_done, bytes_total). If ``expected_size`` is given
+    and the finished file does not match it, raises (guards a truncated download)."""
     name = url.rsplit("/", 1)[-1] or "gamenote-setup.exe"
     dest = Path(tempfile.gettempdir()) / name
     req = urllib.request.Request(url, headers={"User-Agent": "gamenote-updater"})
     with urllib.request.urlopen(req, timeout=timeout) as resp, open(dest, "wb") as f:
-        total = int(resp.headers.get("Content-Length", 0) or 0)
+        total = int(resp.headers.get("Content-Length", 0) or 0) or (expected_size or 0)
         done = 0
         while True:
             chunk = resp.read(256 * 1024)
@@ -108,6 +114,10 @@ def download(url: str, progress_cb=None, timeout: float = 30.0) -> Path:
             done += len(chunk)
             if progress_cb is not None and total:
                 progress_cb(done, total)
+
+    actual = dest.stat().st_size
+    if expected_size and actual != expected_size:
+        raise OSError(f"download size mismatch: got {actual}, expected {expected_size}")
     return dest
 
 
@@ -145,7 +155,8 @@ class Updater(QObject):
 
     def _download(self, info: UpdateInfo) -> None:
         try:
-            path = download(info.url, progress_cb=lambda d, t: self.progress.emit(d, t))
+            path = download(info.url, expected_size=info.size,
+                            progress_cb=lambda d, t: self.progress.emit(d, t))
         except Exception as e:
             log.error("Update download failed: %s", e)
             self.failed.emit(True, str(e))

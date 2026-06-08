@@ -13,6 +13,7 @@ import logging
 import threading
 import webbrowser
 from pathlib import Path
+from logging.handlers import RotatingFileHandler
 
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QIcon, QPixmap, QPainter, QColor, QFont
@@ -35,8 +36,11 @@ SINGLE_INSTANCE_PORT = 49321  # localhost port used only to block a second insta
 
 
 def _setup_logging(global_cfg: dict) -> None:
+    # Rotate so the log never grows unbounded: 1 MB x 3 backups.
     handlers: list[logging.Handler] = [
-        logging.FileHandler(str(gn_config.log_path()), encoding="utf-8")
+        RotatingFileHandler(
+            str(gn_config.log_path()), maxBytes=1_000_000, backupCount=3, encoding="utf-8"
+        )
     ]
     if sys.stderr is not None:  # pythonw has no console; avoid StreamHandler errors
         handlers.append(logging.StreamHandler())
