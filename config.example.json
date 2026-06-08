@@ -2,6 +2,7 @@
   "version": 1,
   "global": {
     "model_size": "small.en",
+    "device": "auto",
     "beam_size": 1,
     "input_device": null,
     "sample_rate": 16000,

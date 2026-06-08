@@ -80,6 +80,7 @@ DEFAULT_CONFIG: dict[str, Any] = {
     "version": CONFIG_VERSION,
     "global": {
         "model_size": "small.en",
+        "device": "auto",  # "auto" (GPU then CPU), "cuda" (prefer GPU), or "cpu"
         "beam_size": 1,
         "input_device": None,
         "sample_rate": 16000,

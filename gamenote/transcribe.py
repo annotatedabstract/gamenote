@@ -130,6 +130,21 @@ def model_available(model_size: str) -> bool:
     return False
 
 
+def _device_attempts(device_pref: str) -> list[tuple[str, str]]:
+    """Ordered ``(device, compute_type)`` pairs to try, by device preference.
+
+    - ``auto`` (default) and ``cuda``: prefer GPU (float16) and fall back to CPU
+      (int8). With ``cuda`` the caller warns the user when the GPU did not
+      actually engage, so a missing CUDA install is obvious rather than silently
+      slow.
+    - ``cpu``: CPU only, which also skips the CUDA probe and its log warning.
+    """
+    pref = (device_pref or "auto").strip().lower()
+    if pref == "cpu":
+        return [("cpu", "int8")]
+    return [("cuda", "float16"), ("cpu", "int8")]
+
+
 class Transcriber:
     """Holds the loaded model. ``load()`` is blocking (call it on a background
     thread at startup); ``ready`` reports whether the model is usable."""
@@ -139,6 +154,7 @@ class Transcriber:
         self.model: WhisperModel | None = None
         self.device: str = ""
         self.loaded_model_size: str = ""  # remembers what load() actually loaded
+        self.loaded_device_pref: str = ""  # the device setting load() honored
 
     @property
     def ready(self) -> bool:
@@ -153,25 +169,34 @@ class Transcriber:
         list(model.transcribe(silent, language="en", beam_size=1, vad_filter=False)[0])
 
     def load(self) -> str:
-        """Load the model, trying CUDA (float16) then CPU (int8). Returns the
-        device actually used. Raises if even the CPU path fails."""
+        """Load the model following the configured device preference (see
+        ``_device_attempts``). Returns the device actually used. Raises only if
+        every configured attempt fails (e.g. a corrupt model, or forced CPU that
+        cannot initialize)."""
         model_size = self.cfg["model_size"]
+        device_pref = str(self.cfg.get("device", "auto")).strip().lower()
         source, extra = resolve_model_source(model_size)
-        try:
-            m = WhisperModel(source, device="cuda", compute_type="float16", **extra)
-            self._warmup(m)
+        attempts = _device_attempts(device_pref)
+        last_exc: Exception | None = None
+        for i, (device, compute_type) in enumerate(attempts):
+            try:
+                m = WhisperModel(source, device=device, compute_type=compute_type, **extra)
+                self._warmup(m)
+            except Exception as e:
+                last_exc = e
+                if i + 1 < len(attempts):
+                    log.warning("%s path unavailable (%s). Falling back to %s.",
+                                device.upper(), e, attempts[i + 1][0].upper())
+                else:
+                    log.error("%s path unavailable (%s).", device.upper(), e)
+                continue
             self.model = m
-            self.device = "cuda"
-            log.info("Loaded model '%s' on CUDA (float16).", model_size)
-        except Exception as e:
-            log.warning("GPU path unavailable (%s). Falling back to CPU (int8).", e)
-            m = WhisperModel(source, device="cpu", compute_type="int8", **extra)
-            self._warmup(m)
-            self.model = m
-            self.device = "cpu"
-            log.info("Loaded model '%s' on CPU (int8).", model_size)
-        self.loaded_model_size = model_size
-        return self.device
+            self.device = device
+            self.loaded_model_size = model_size
+            self.loaded_device_pref = device_pref
+            log.info("Loaded model '%s' on %s (%s).", model_size, device.upper(), compute_type)
+            return device
+        raise last_exc if last_exc else RuntimeError("No device attempts configured")
 
     def transcribe(self, audio: "np.ndarray") -> str:
         if self.model is None:

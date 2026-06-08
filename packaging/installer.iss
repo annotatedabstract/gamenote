@@ -44,7 +44,8 @@ Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{
 Name: "startupicon"; Description: "Start {#MyAppName} automatically when I log in"; GroupDescription: "Startup:"; Flags: unchecked
 
 [Files]
-; The whole one-folder PyInstaller build (exe, _internal, bundled model, DLLs).
+; The whole one-folder PyInstaller build (exe, _internal, DLLs). No model bundled;
+; it downloads on first run.
 Source: "..\dist\gamenote\*"; DestDir: "{app}"; Flags: recursesubdirs createallsubdirs ignoreversion
 
 [Icons]

@@ -162,7 +162,13 @@ def main() -> int:
                     controller.status_changed.emit("loading")
                 device = transcriber.load()
                 controller.status_changed.emit(f"ready ({device})")
-                controller.launch_message.emit("gamenote ready", "#cfe8ff")
+                if str(global_cfg.get("device", "auto")).lower() == "cuda" and device != "cuda":
+                    controller.launch_message.emit(
+                        "GPU unavailable - running on CPU (check the CUDA libraries)",
+                        "#ffe9a8",
+                    )
+                else:
+                    controller.launch_message.emit("gamenote ready", "#cfe8ff")
                 if bool(global_cfg.get("launch_sound", True)):
                     gn_sounds.play_arming(global_cfg.get("launch_sound_file") or None)
             except Exception as e:
@@ -184,15 +190,18 @@ def main() -> int:
         overlay.hide_ms = int(global_cfg["overlay"]["hide_ms"])
         set_overlay_enabled(bool(global_cfg["overlay"]["enabled"]))
         tray.refresh()
-        if transcriber.loaded_model_size and transcriber.loaded_model_size != global_cfg["model_size"]:
+        device_pref = str(global_cfg.get("device", "auto")).lower()
+        size_changed = transcriber.loaded_model_size != global_cfg["model_size"]
+        device_changed = transcriber.loaded_device_pref != device_pref
+        if transcriber.loaded_model_size and (size_changed or device_changed):
             if controller.is_recording:
                 QMessageBox.information(
                     None, "gamenote",
-                    "Model size changed. It will reload next time you open settings "
-                    "(a note is recording right now).",
+                    "The model size or device change will apply next time you open "
+                    "settings (a note is recording right now).",
                 )
             else:
-                log.info("Model size changed to '%s'; reloading.", global_cfg["model_size"])
+                log.info("Reloading model (size or device changed).")
                 load_model_async()
         log.info("Settings applied.")
 
@@ -253,7 +262,7 @@ def main() -> int:
         if not gn_updater.is_frozen():
             webbrowser.open(gn_updater.RELEASES_URL)
             return
-        tray.show_message("gamenote", f"Downloading update {info.version} (~500 MB)...")
+        tray.show_message("gamenote", f"Downloading update {info.version} (~90 MB)...")
         updater.download_async(info)
 
     tray = Tray(

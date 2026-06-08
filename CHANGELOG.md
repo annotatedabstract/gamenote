@@ -6,6 +6,12 @@ versioning.
 
 ## [Unreleased]
 
+### Added
+- Device setting (Settings -> Model): Auto (GPU when available, the default),
+  Force GPU (CUDA), or Force CPU. Using the GPU still requires the NVIDIA CUDA
+  libraries (see the README); without them the app runs on CPU as before. Force
+  CPU also skips the GPU probe and its launch warning.
+
 ## [1.2.0] - 2026-06-07
 
 ### Added
@@ -26,7 +32,7 @@ versioning.
 ### Changed
 - The model is no longer bundled in the installer; it downloads once on first
   run to %LOCALAPPDATA% and persists across updates. The installer drops from
-  ~500 MB to ~25 MB, and updates are small.
+  ~500 MB to ~90 MB, and updates are small.
 
 ### Fixed
 - The log file now rotates (1 MB x 3) instead of growing without bound.

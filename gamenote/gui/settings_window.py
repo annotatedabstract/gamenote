@@ -46,6 +46,12 @@ log = logging.getLogger("gamenote.gui.settings")
 
 _MODEL_SIZES = ["tiny.en", "base.en", "small.en", "medium.en", "large-v3"]
 _LOG_LEVELS = ["DEBUG", "INFO", "WARNING", "ERROR"]
+# (label, stored value) for the Device combo. Stored value matches config "device".
+_DEVICE_CHOICES = [
+    ("Auto (GPU if available)", "auto"),
+    ("Force GPU (CUDA)", "cuda"),
+    ("Force CPU", "cpu"),
+]
 
 
 class _WheelGuard(QObject):
@@ -115,6 +121,10 @@ class SettingsWindow(QDialog):
         self.language = QLineEdit()
         self.language.setPlaceholderText("en")
 
+        self.device = QComboBox()
+        for _label, _value in _DEVICE_CHOICES:
+            self.device.addItem(_label, _value)
+
         self.input_device = QComboBox()
         self.input_device.addItem("System default", None)
         for index, name in gn_audio.list_input_devices():
@@ -182,8 +192,11 @@ class SettingsWindow(QDialog):
         mform.addRow("Model size", self.model_size)
         mform.addRow("Beam size", self.beam_size)
         mform.addRow("Language", self.language)
-        note = QLabel("Changing the model size reloads it (when no note is recording). "
-                      "Non-English needs a multilingual model (e.g. small, not small.en).")
+        mform.addRow("Device", self.device)
+        note = QLabel("Changing the model size or device reloads the model (when no "
+                      "note is recording). Non-English needs a multilingual model "
+                      "(e.g. small, not small.en). GPU needs the NVIDIA CUDA libraries "
+                      "installed; otherwise it runs on CPU.")
         note.setWordWrap(True)
         note.setStyleSheet("color: #888;")
         mform.addRow("", note)
@@ -222,7 +235,7 @@ class SettingsWindow(QDialog):
         updates_box = QGroupBox("Updates")
         uform = QFormLayout(updates_box)
         uform.addRow("", self.auto_update)
-        unote = QLabel("Checks GitHub Releases. Installing downloads the installer (~500 MB).")
+        unote = QLabel("Checks GitHub Releases. Installing downloads the installer (~90 MB).")
         unote.setStyleSheet("color: #888;")
         uform.addRow("", unote)
 
@@ -252,7 +265,7 @@ class SettingsWindow(QDialog):
         # Stop combo/spin boxes from hijacking the mouse wheel, and keep a long
         # device name from forcing the field (and window) wider than it should be.
         guard = _WheelGuard(scroll)
-        combos = (self.model_size, self.input_device, self.log_level)
+        combos = (self.model_size, self.device, self.input_device, self.log_level)
         spins = (
             self.beam_size, self.sample_rate, self.frame_ms,
             self.silence_threshold, self.silence_seconds, self.start_grace_seconds,
@@ -292,6 +305,10 @@ class SettingsWindow(QDialog):
         self.model_size.setCurrentText(str(g.get("model_size", "small.en")))
         self.beam_size.setValue(int(g.get("beam_size", 1)))
         self.language.setText(str(g.get("language", "en")))
+
+        dev_pref = str(g.get("device", "auto")).lower()
+        dev_idx = self.device.findData(dev_pref)
+        self.device.setCurrentIndex(dev_idx if dev_idx >= 0 else 0)
 
         device = g.get("input_device", None)
         idx = self.input_device.findData(device)
@@ -347,6 +364,7 @@ class SettingsWindow(QDialog):
         source = "file" if self.context_from_file.isChecked() else "manual"
         return {
             "model_size": self.model_size.currentText().strip(),
+            "device": self.device.currentData(),
             "beam_size": self.beam_size.value(),
             "language": self.language.text().strip() or "en",
             "input_device": self.input_device.currentData(),

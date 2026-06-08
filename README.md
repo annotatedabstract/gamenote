@@ -123,9 +123,9 @@ Build (Git Bash):
 bash packaging/build.sh
 ```
 
-This downloads the `small.en` model once (about 480 MB) into
-`packaging/model_cache`, then runs PyInstaller. The result is a one-folder app at
-`dist/gamenote`. Distribute the whole `dist/gamenote` folder.
+This runs PyInstaller and produces a one-folder app at `dist/gamenote`.
+Distribute the whole `dist/gamenote` folder. The model is not bundled, so the
+build stays small; the app downloads it on first run (see the note below).
 
 To build by hand instead:
 
@@ -135,10 +135,11 @@ pyinstaller --noconfirm --clean packaging/gamenote.spec
 
 Notes:
 
-- The model is bundled, so the app is fully offline. At runtime the bundled model
-  is loaded from `models/small.en` inside the app folder. If you build without the
-  model present, the app downloads it on first run into
-  `%LOCALAPPDATA%\gamenote\models` instead.
+- The model is not bundled, which keeps the build and installer small. The app
+  downloads `small.en` on first run into `%LOCALAPPDATA%\gamenote\models` and
+  reuses it across updates. The runtime still loads a model bundled at
+  `models/small.en` inside the app folder if one is present, so you can pre-bundle
+  it for a fully offline build.
 - The large CUDA wheels are not installed in the build environment, so they are
   not bundled. The CUDA path remains as a runtime fallback for anyone who installs
   `nvidia-cublas-cu12` and `nvidia-cudnn-cu12` and runs from source.
@@ -164,7 +165,7 @@ installer is per user by default (no admin), with optional desktop and
 "run at login" shortcuts the user can tick during setup. Keep `MyAppVersion` in
 `packaging/installer.iss` in sync with `gamenote/__init__.py`.
 
-The installer (about 500 MB) is too large for the git repo, so distribute it as a
+The installer (about 90 MB) is too large for the git repo, so distribute it as a
 GitHub Release asset, not a committed file. Tag a release and upload
 `gamenote-setup-<version>.exe` to it.
 
@@ -176,8 +177,11 @@ pythonw main.pyw        # windowless (tray only)
 python main.pyw         # with a console, useful for logs
 ```
 
-For the GPU path from source, also `pip install nvidia-cublas-cu12 nvidia-cudnn-cu12`.
-The app tries CUDA at launch and falls back to CPU automatically.
+For the GPU path from source, also `pip install nvidia-cublas-cu12 nvidia-cudnn-cu12`,
+then relaunch. By default (Settings → Model → Device = Auto) the app tries CUDA at
+launch and falls back to CPU automatically. Set Device to "Force CPU" to skip the GPU
+probe, or "Force GPU (CUDA)" to be warned at launch if the GPU does not engage. The
+tray status shows which device won (`ready (cuda)` or `ready (cpu)`).
 
 ### Tests and lint
 

@@ -11,6 +11,7 @@ def test_load_creates_defaults(appdata):
     assert cfg["global"]["launch_sound"] is True
     assert cfg["global"]["auto_update"] is True
     assert cfg["global"]["language"] == "en"
+    assert cfg["global"]["device"] == "auto"
     assert all(p["capture_mode"] == "vad" for p in cfg["profiles"])
 
 

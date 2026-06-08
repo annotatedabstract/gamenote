@@ -1,14 +1,14 @@
 # -*- mode: python ; coding: utf-8 -*-
 """PyInstaller spec for gamenote (one-folder, CPU default).
 
-Bundles the small.en faster-whisper model so the app runs offline on a machine
-with no Python and no GPU. The big CUDA wheels (nvidia-cublas-cu12 /
-nvidia-cudnn-cu12) are intentionally NOT installed in the build environment, so
-they are never collected; the CUDA path stays as a runtime fallback for anyone
-who installs them and runs from source.
+The small.en faster-whisper model is NOT bundled; it downloads on first run to
+%LOCALAPPDATA%\\gamenote\\models, which keeps the installer small (~90 MB). The big
+CUDA wheels (nvidia-cublas-cu12 / nvidia-cudnn-cu12) are intentionally NOT
+installed in the build environment, so they are never collected; the CUDA path
+stays as a runtime fallback for anyone who installs them and runs from source.
 
 Build from the repo root:  pyinstaller --noconfirm --clean packaging/gamenote.spec
-(or use packaging/build.sh, which also fetches the model first).
+(or use packaging/build.sh).
 """
 
 from pathlib import Path
@@ -34,7 +34,7 @@ for pkg in ("faster_whisper", "ctranslate2", "sounddevice", "av", "tokenizers"):
 # keyboard loads platform submodules dynamically (e.g. keyboard._winkeyboard).
 hiddenimports += collect_submodules("keyboard")
 
-# The model is NOT bundled (keeps the installer small, ~25 MB). It downloads
+# The model is NOT bundled (keeps the installer small, ~90 MB). It downloads
 # once on first run to %LOCALAPPDATA%\gamenote\models and persists across
 # updates. See gamenote.transcribe.resolve_model_source.
 
