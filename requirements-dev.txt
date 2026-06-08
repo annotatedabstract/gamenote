@@ -1,9 +1,10 @@
 # Dev/test dependencies. The runtime backend (faster-whisper) is intentionally
 # omitted to keep CI fast: gamenote.transcribe imports it lazily, and the tests
 # that exercise model loading stub it. Install requirements.txt to run the app.
-PySide6>=6.6
-sounddevice>=0.4
-numpy>=1.24
-keyboard>=0.13
-pytest>=8
-ruff>=0.5
+PySide6>=6.6,<7
+sounddevice>=0.4,<1
+numpy>=1.24,<3
+keyboard>=0.13,<1
+pytest>=8,<9
+pytest-cov>=5,<7
+ruff>=0.5,<1

@@ -7,28 +7,28 @@ The app launches to the tray with no window open (handoff Section 4).
 
 from __future__ import annotations
 
-import sys
-import socket
 import logging
+import socket
+import sys
 import threading
 import webbrowser
-from pathlib import Path
 from logging.handlers import RotatingFileHandler
+from pathlib import Path
 
 from PySide6.QtCore import Qt
-from PySide6.QtGui import QIcon, QPixmap, QPainter, QColor, QFont
-from PySide6.QtWidgets import QApplication, QSystemTrayIcon, QMessageBox
+from PySide6.QtGui import QColor, QFont, QIcon, QPainter, QPixmap
+from PySide6.QtWidgets import QApplication, QMessageBox, QSystemTrayIcon
 
 from . import config as gn_config
-from . import profiles as gn_profiles
 from . import hotkeys as gn_hotkeys
-from . import transcribe as gn_transcribe
+from . import profiles as gn_profiles
 from . import sounds as gn_sounds
+from . import transcribe as gn_transcribe
 from . import updater as gn_updater
 from .controller import Controller
+from .gui.settings_window import SettingsWindow
 from .overlay import Overlay
 from .tray import Tray
-from .gui.settings_window import SettingsWindow
 
 log = logging.getLogger("gamenote")
 

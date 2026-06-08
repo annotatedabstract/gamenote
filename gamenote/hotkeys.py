@@ -9,7 +9,7 @@ runs on the main thread (handoff Section 4).
 from __future__ import annotations
 
 import logging
-from typing import Callable
+from collections.abc import Callable
 
 import keyboard
 

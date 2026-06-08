@@ -15,13 +15,13 @@ queued signal connected to :meth:`Overlay.show_message`.
 
 from __future__ import annotations
 
-import sys
-import math
 import logging
+import math
+import sys
 
-from PySide6.QtCore import Qt, QTimer, QVariantAnimation, QAbstractAnimation, Slot
+from PySide6.QtCore import QAbstractAnimation, Qt, QTimer, QVariantAnimation, Slot
 from PySide6.QtGui import QGuiApplication
-from PySide6.QtWidgets import QWidget, QLabel, QVBoxLayout, QHBoxLayout
+from PySide6.QtWidgets import QHBoxLayout, QLabel, QVBoxLayout, QWidget
 
 log = logging.getLogger("gamenote.overlay")
 

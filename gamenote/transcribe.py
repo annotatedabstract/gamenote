@@ -8,9 +8,9 @@ stays as an opt-in fallback for anyone who installs the NVIDIA wheels.
 
 from __future__ import annotations
 
+import logging
 import os
 import sys
-import logging
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -209,7 +209,7 @@ class Transcriber:
         self.load_failed = True
         raise last_exc if last_exc else RuntimeError("No device attempts configured")
 
-    def transcribe(self, audio: "np.ndarray") -> str:
+    def transcribe(self, audio: np.ndarray) -> str:
         if self.model is None:
             raise RuntimeError("Transcriber.transcribe called before load()")
         beam_size = int(self.cfg["beam_size"])

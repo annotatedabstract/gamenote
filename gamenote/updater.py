@@ -11,10 +11,10 @@ the releases page. All network work is best-effort and never raises into the UI.
 
 from __future__ import annotations
 
-import os
-import sys
 import json
 import logging
+import os
+import sys
 import tempfile
 import threading
 import urllib.parse

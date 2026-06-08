@@ -8,24 +8,24 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from PySide6.QtCore import Signal, Qt
+from PySide6.QtCore import Qt, Signal
 from PySide6.QtGui import QKeySequence
 from PySide6.QtWidgets import (
-    QWidget,
-    QFormLayout,
-    QLineEdit,
-    QPushButton,
-    QHBoxLayout,
     QCheckBox,
     QComboBox,
-    QLabel,
-    QFileDialog,
     QDialog,
-    QVBoxLayout,
-    QKeySequenceEdit,
     QDialogButtonBox,
+    QFileDialog,
+    QFormLayout,
     QFrame,
+    QHBoxLayout,
+    QKeySequenceEdit,
+    QLabel,
+    QLineEdit,
     QMessageBox,
+    QPushButton,
+    QVBoxLayout,
+    QWidget,
 )
 
 from .. import config as gn_config

@@ -9,9 +9,9 @@ Without OBS there is no recording timestamp, so the header value is the date.
 
 from __future__ import annotations
 
+import logging
 import os
 import re
-import logging
 from datetime import datetime
 from pathlib import Path
 

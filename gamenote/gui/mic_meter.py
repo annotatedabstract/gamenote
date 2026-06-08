@@ -14,15 +14,14 @@ import threading
 
 import numpy as np
 import sounddevice as sd
-
-from PySide6.QtCore import Qt, QObject, Signal, Slot
-from PySide6.QtGui import QPainter, QColor
+from PySide6.QtCore import QObject, Qt, Signal, Slot
+from PySide6.QtGui import QColor, QPainter
 from PySide6.QtWidgets import (
-    QWidget,
     QHBoxLayout,
-    QVBoxLayout,
-    QPushButton,
     QLabel,
+    QPushButton,
+    QVBoxLayout,
+    QWidget,
 )
 
 log = logging.getLogger("gamenote.gui.mic_meter")

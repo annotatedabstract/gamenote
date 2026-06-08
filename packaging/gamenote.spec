@@ -22,6 +22,9 @@ binaries = []
 hiddenimports = []
 
 # faster-whisper + its native backend and audio deps: collect DLLs/data/submodules.
+# The transcription backend is required; failing to collect it would produce a
+# silently broken build, so treat that as fatal. The rest stay best-effort.
+_REQUIRED = {"faster_whisper", "ctranslate2"}
 for pkg in ("faster_whisper", "ctranslate2", "sounddevice", "av", "tokenizers"):
     try:
         d, b, h = collect_all(pkg)
@@ -29,6 +32,10 @@ for pkg in ("faster_whisper", "ctranslate2", "sounddevice", "av", "tokenizers"):
         binaries += b
         hiddenimports += h
     except Exception as exc:  # pragma: no cover - build-time diagnostics
+        if pkg in _REQUIRED:
+            raise RuntimeError(
+                f"[gamenote.spec] required package {pkg!r} failed to collect: {exc}"
+            ) from exc
         print(f"[gamenote.spec] collect_all({pkg!r}) skipped: {exc}")
 
 # keyboard loads platform submodules dynamically (e.g. keyboard._winkeyboard).

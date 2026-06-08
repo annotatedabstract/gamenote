@@ -24,6 +24,17 @@ versioning.
   re-point a profile's "Session file" at the JSON to use the new script and the
   `{clip}` token. Requires OBS 28+ for split tracking.
 
+### Fixed
+- A corrupt or hand-broken config is now backed up to `config.json.bad` and reset
+  to defaults instead of failing to load on every launch; the config is also
+  flushed to disk durably on save.
+- The updater only downloads from an HTTPS GitHub URL and writes the installer
+  atomically, cleaning up partial downloads.
+- A failed model load now reports "model error" on a hotkey press instead of a
+  permanent "loading...".
+- The silence-calibration meter reliably releases the microphone when its window
+  or tab is hidden or closed.
+
 ## [1.2.0] - 2026-06-07
 
 ### Added

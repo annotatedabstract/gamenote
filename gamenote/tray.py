@@ -8,11 +8,11 @@ whether the model is still loading, ready, or hotkeys are paused.
 from __future__ import annotations
 
 import logging
-from typing import Callable
+from collections.abc import Callable
 
-from PySide6.QtCore import QObject, Slot, QUrl
-from PySide6.QtGui import QIcon, QAction, QCursor, QDesktopServices
-from PySide6.QtWidgets import QSystemTrayIcon, QMenu, QInputDialog
+from PySide6.QtCore import QObject, QUrl, Slot
+from PySide6.QtGui import QAction, QCursor, QDesktopServices, QIcon
+from PySide6.QtWidgets import QInputDialog, QMenu, QSystemTrayIcon
 
 from .controller import Controller
 from .hotkeys import HotkeyManager

@@ -10,37 +10,37 @@ model size changed and no note is recording.
 from __future__ import annotations
 
 import logging
-from typing import Callable
+from collections.abc import Callable
 
-from PySide6.QtCore import Qt, QObject, QEvent
+from PySide6.QtCore import QEvent, QObject, Qt
 from PySide6.QtWidgets import (
+    QCheckBox,
+    QComboBox,
     QDialog,
-    QWidget,
+    QDialogButtonBox,
+    QDoubleSpinBox,
+    QFileDialog,
+    QFormLayout,
+    QFrame,
+    QGroupBox,
+    QHBoxLayout,
+    QLabel,
+    QLineEdit,
+    QListWidget,
+    QMessageBox,
+    QPushButton,
+    QScrollArea,
+    QSpinBox,
     QTabWidget,
     QVBoxLayout,
-    QHBoxLayout,
-    QFormLayout,
-    QLineEdit,
-    QComboBox,
-    QSpinBox,
-    QDoubleSpinBox,
-    QCheckBox,
-    QLabel,
-    QListWidget,
-    QPushButton,
-    QDialogButtonBox,
-    QScrollArea,
-    QGroupBox,
-    QMessageBox,
-    QFrame,
-    QFileDialog,
+    QWidget,
 )
 
 from .. import audio as gn_audio
 from ..config import default_config, default_global
 from ..profiles import Profile, profiles_from_config, validate_profiles
-from .profile_editor import ProfileEditor
 from .mic_meter import MicMeter
+from .profile_editor import ProfileEditor
 
 log = logging.getLogger("gamenote.gui.settings")
 

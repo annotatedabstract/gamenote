@@ -91,7 +91,7 @@ class LineFormat:
     prefix: str = ""
 
     @classmethod
-    def from_dict(cls, d: dict[str, Any] | None) -> "LineFormat":
+    def from_dict(cls, d: dict[str, Any] | None) -> LineFormat:
         d = d or {}
         return cls(
             timestamp_format=d.get("timestamp_format", "%Y-%m-%d %H:%M:%S"),
@@ -127,7 +127,7 @@ class Profile:
     capture_mode: str = "vad"
 
     @classmethod
-    def from_dict(cls, d: dict[str, Any]) -> "Profile":
+    def from_dict(cls, d: dict[str, Any]) -> Profile:
         return cls(
             id=str(d.get("id", "")),
             name=str(d.get("name", "")),

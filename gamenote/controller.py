@@ -17,7 +17,7 @@ import logging
 import threading
 from pathlib import Path
 
-from PySide6.QtCore import QObject, Signal, Slot, Qt
+from PySide6.QtCore import QObject, Qt, Signal, Slot
 
 from . import audio as gn_audio
 from . import notes as gn_notes
