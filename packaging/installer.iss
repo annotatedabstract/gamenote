@@ -8,7 +8,7 @@
 ; Requires Inno Setup 6:  winget install JRSoftware.InnoSetup
 
 #define MyAppName "gamenote"
-#define MyAppVersion "1.1.0"
+#define MyAppVersion "1.2.0"
 #define MyAppPublisher "AnnotatedAbstract"
 #define MyAppURL "https://github.com/annotatedabstract/gamenote"
 #define MyAppExeName "gamenote.exe"

@@ -6,6 +6,8 @@ versioning.
 
 ## [Unreleased]
 
+## [1.2.0] - 2026-06-07
+
 ### Added
 - Overlay indicators: a pulsing blue dot on "listening" and a green check on
   "saved", matching the landing-page graphic.
@@ -52,6 +54,7 @@ versioning.
   transcription, a focus-safe overlay, and a per-user installer with the
   small.en model bundled (CPU by default).
 
-[Unreleased]: https://github.com/annotatedabstract/gamenote/compare/v1.1.0...HEAD
+[Unreleased]: https://github.com/annotatedabstract/gamenote/compare/v1.2.0...HEAD
+[1.2.0]: https://github.com/annotatedabstract/gamenote/releases/tag/v1.2.0
 [1.1.0]: https://github.com/annotatedabstract/gamenote/releases/tag/v1.1.0
 [1.0.0]: https://github.com/annotatedabstract/gamenote/releases/tag/v1.0.0
