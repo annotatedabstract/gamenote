@@ -7,10 +7,22 @@ versioning.
 ## [Unreleased]
 
 ### Added
+- Recording position in notes: a per-profile "Stamp recording position from an
+  OBS file" option adds a `{clip}` prefix token that expands to how far into the
+  current OBS recording each note is (e.g. `[06:12]`), and stays correct across
+  OBS automatic file splits. Omitted cleanly when no recording is active.
 - Device setting (Settings -> Model): Auto (GPU when available, the default),
   Force GPU (CUDA), or Force CPU. Using the GPU still requires the NVIDIA CUDA
   libraries (see the README); without them the app runs on CPU as before. Force
   CPU also skips the GPU probe and its launch warning.
+
+### Changed
+- The OBS integration script is renamed (`gamenote-session.lua` ->
+  `gamenote-obs.lua`) and now writes a combined `gamenote-obs.json` sidecar (game,
+  session start, current-file start) instead of plain-text `.current_session`.
+  Older plain-text `.current_session` / `.current_game` files are still read;
+  re-point a profile's "Session file" at the JSON to use the new script and the
+  `{clip}` token. Requires OBS 28+ for split tracking.
 
 ## [1.2.0] - 2026-06-07
 

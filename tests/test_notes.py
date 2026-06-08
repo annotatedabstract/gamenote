@@ -1,4 +1,5 @@
 import datetime
+import json
 
 from gamenote import notes
 from gamenote.profiles import LineFormat, Profile
@@ -43,3 +44,19 @@ def test_session_header_from_file_value(tmp_path):
                 session_from_file=True, session_file=str(sess))
     path = notes.append_note(p, "Octopath", "x", datetime.datetime(2026, 6, 7, 9, 0, 0))
     assert "## Recording session: 2026-05-31_14-02-10" in path.read_text(encoding="utf-8")
+
+
+def test_append_stamps_clip_offset_from_sidecar(tmp_path):
+    sidecar = tmp_path / "gamenote-obs.json"
+    sidecar.write_text(
+        json.dumps({"file_start": "2026-06-08_14-16-55", "recording": True}),
+        encoding="utf-8",
+    )
+    p = Profile("e", "E", "f1", str(tmp_path), "notes.md",
+                LineFormat("%Y-%m-%d %H:%M:%S", "[{clip}] "),
+                use_session_headers=False,
+                clip_from_file=True, clip_file=str(sidecar))
+    path = notes.append_note(p, "", "enemy clips through wall",
+                             datetime.datetime(2026, 6, 8, 14, 23, 7))
+    text = path.read_text(encoding="utf-8")
+    assert "- [2026-06-08 14:23:07] [06:12] enemy clips through wall" in text

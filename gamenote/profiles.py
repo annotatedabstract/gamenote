@@ -7,6 +7,8 @@ purely about destination and format.
 
 from __future__ import annotations
 
+import json
+import re
 from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
@@ -26,6 +28,49 @@ def sanitize_part(value: str) -> str:
     empty string if nothing survives (the caller decides on a fallback)."""
     cleaned = "".join(c for c in value if c not in _INVALID_CHARS and ord(c) >= 32)
     return cleaned.strip().rstrip(" .")
+
+
+def format_offset(seconds: float) -> str:
+    """Seconds into a recording -> a compact offset string: ``MM:SS`` normally,
+    ``H:MM:SS`` once past an hour (e.g. ``06:12``, ``1:03:45``). Negative values
+    clamp to ``00:00``."""
+    total = max(0, int(seconds))
+    hours, rem = divmod(total, 3600)
+    minutes, secs = divmod(rem, 60)
+    if hours:
+        return f"{hours}:{minutes:02d}:{secs:02d}"
+    return f"{minutes:02d}:{secs:02d}"
+
+
+def _parse_sidecar_time(value: str) -> datetime | None:
+    """Parse a sidecar timestamp. Accepts gamenote's ``%Y-%m-%d_%H-%M-%S`` plus a
+    couple of ISO-ish forms. Returns None on anything unparseable."""
+    value = (value or "").strip()
+    for fmt in ("%Y-%m-%d_%H-%M-%S", "%Y-%m-%dT%H:%M:%S", "%Y-%m-%d %H:%M:%S"):
+        try:
+            return datetime.strptime(value, fmt)
+        except ValueError:
+            continue
+    return None
+
+
+def _read_sidecar(path: str) -> dict[str, Any] | None:
+    """Parse a ``gamenote-obs.json`` sidecar into a dict, or None if the file is
+    missing, unreadable, empty, or not a JSON object (e.g. a legacy plain-text
+    ``.current_session`` / ``.current_game`` value). Callers fall back accordingly."""
+    if not path:
+        return None
+    try:
+        raw = Path(path).read_text(encoding="utf-8").strip()
+    except OSError:
+        return None
+    if not raw:
+        return None
+    try:
+        data = json.loads(raw)
+    except ValueError:  # includes json.JSONDecodeError; plain-text value
+        return None
+    return data if isinstance(data, dict) else None
 
 
 @dataclass
@@ -58,6 +103,11 @@ class Profile:
     # (written by OBS) instead of the date. Off by default.
     session_from_file: bool = False
     session_file: str = ""
+    # Optional: stamp the note with its position into the current OBS recording
+    # segment, read from a gamenote-obs.json sidecar (see integrations/obs). The
+    # value fills the {clip} token in the line prefix; omitted when unavailable.
+    clip_from_file: bool = False
+    clip_file: str = ""
     # Play the subtle beep when this profile's hotkey fires. On by default.
     hotkey_beep: bool = True
     # "vad" = auto-stop on trailing silence; "toggle" = press to start, press
@@ -76,6 +126,8 @@ class Profile:
             use_session_headers=bool(d.get("use_session_headers", True)),
             session_from_file=bool(d.get("session_from_file", False)),
             session_file=str(d.get("session_file", "")),
+            clip_from_file=bool(d.get("clip_from_file", False)),
+            clip_file=str(d.get("clip_file", "")),
             hotkey_beep=bool(d.get("hotkey_beep", True)),
             capture_mode="toggle" if str(d.get("capture_mode", "vad")) == "toggle" else "vad",
         )
@@ -91,6 +143,8 @@ class Profile:
             "use_session_headers": self.use_session_headers,
             "session_from_file": self.session_from_file,
             "session_file": self.session_file,
+            "clip_from_file": self.clip_from_file,
+            "clip_file": self.clip_file,
             "hotkey_beep": self.hotkey_beep,
             "capture_mode": self.capture_mode,
         }
@@ -119,10 +173,24 @@ class Profile:
             rendered = rendered.replace("{" + key + "}", value)
         return Path(self.dest_root) / rendered
 
-    def render_line(self, text: str, now: datetime | None = None) -> str:
+    def render_line(
+        self, text: str, now: datetime | None = None, clip: str | None = None
+    ) -> str:
+        """Render the appended line. A ``{clip}`` token in the prefix is replaced
+        with the recording-segment offset (see :meth:`clip_offset`); when that is
+        empty the token and any now-empty ``[]``/``()`` wrapper around it are
+        removed so the line stays clean. Pass ``clip`` to skip the file read."""
         now = now or datetime.now()
+        prefix = self.line_format.prefix
+        if "{clip}" in prefix:
+            if clip is None:
+                clip = self.clip_offset(now)
+            prefix = prefix.replace("{clip}", clip or "")
+            if not clip:
+                prefix = re.sub(r"\[\s*\]|\(\s*\)", "", prefix)
+                prefix = re.sub(r"\s{2,}", " ", prefix).lstrip()
         ts = now.strftime(self.line_format.timestamp_format)
-        return f"- [{ts}] {self.line_format.prefix}{text}\n"
+        return f"- [{ts}] {prefix}{text}\n"
 
     def session_header_value(self, now: datetime | None = None) -> str:
         """The value for the ``## Recording session:`` header. When the legacy
@@ -130,13 +198,38 @@ class Profile:
         back to the date if the file is missing or empty). Otherwise the date."""
         now = now or datetime.now()
         if self.session_from_file and self.session_file:
-            try:
-                val = Path(self.session_file).read_text(encoding="utf-8").strip()
+            data = _read_sidecar(self.session_file)
+            if data is not None:
+                val = str(data.get("session_start", "") or "").strip()
                 if val:
                     return val
-            except OSError:
-                pass
+            else:
+                try:
+                    val = Path(self.session_file).read_text(encoding="utf-8").strip()
+                    if val:
+                        return val
+                except OSError:
+                    pass
         return now.strftime("%Y-%m-%d")
+
+    def clip_offset(self, now: datetime | None = None) -> str:
+        """Elapsed position into the current OBS recording segment, formatted (see
+        :func:`format_offset`), or ``""`` when: the option is off, the sidecar is
+        missing/unreadable, recording is not active, ``file_start`` is absent or
+        unparseable, or the offset would be negative (a stale sidecar)."""
+        if not (self.clip_from_file and self.clip_file):
+            return ""
+        data = _read_sidecar(self.clip_file)
+        if not data or data.get("recording") is False:
+            return ""
+        start = _parse_sidecar_time(str(data.get("file_start", "")))
+        if start is None:
+            return ""
+        now = now or datetime.now()
+        seconds = (now - start).total_seconds()
+        if seconds < 0:
+            return ""
+        return format_offset(seconds)
 
 
 def profiles_from_config(cfg: dict[str, Any]) -> list[Profile]:
@@ -186,6 +279,9 @@ def read_context(context_cfg: dict[str, Any]) -> str:
         file_path = context_cfg.get("file_path", "")
         if not file_path:
             return ""
+        data = _read_sidecar(file_path)
+        if data is not None:
+            return str(data.get("game", "") or "").strip()
         try:
             return Path(file_path).read_text(encoding="utf-8").strip()
         except OSError:

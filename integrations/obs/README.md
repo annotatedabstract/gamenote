@@ -1,39 +1,91 @@
-# OBS session integration (optional)
+# OBS integration (optional)
 
-By default gamenote stamps each `## Recording session:` header with the date. If
-you record with OBS and want the header to carry the recording's start time
-instead (so notes group by recording session, the legacy behavior), use this.
+gamenote works fine on its own. If you record with OBS, this small script lets
+gamenote enrich notes with recording info: the recording's start time (for the
+`## Recording session:` header) and **how far into the current recording each
+note is** (the `{clip}` prefix token, e.g. `[06:12]`).
 
 ## What it does
 
-`gamenote-session.lua` writes one file when OBS starts recording:
+`gamenote-obs.lua` writes a single JSON file into the chosen folder while you
+record:
 
-```
-<Session folder>\.current_session   ->   2026-05-31_14-02-10
+```jsonc
+// <folder>\gamenote-obs.json
+{
+  "game":          "Disco Elysium",          // the active scene name
+  "session_start": "2026-06-08_14-02-10",     // when recording started
+  "file_start":    "2026-06-08_14-16-55",     // when the CURRENT file began
+  "file_path":     "N:\\Recordings\\dE_2.mkv",// the current recording file
+  "recording":     true                        // false once recording stops
+}
 ```
 
-gamenote reads that value for the session header, and writes a new header only
-when it changes (that is, when a new recording starts). If the file is missing or
-empty, gamenote falls back to the date, so nothing breaks when OBS is not running.
+`file_start` is what makes the `{clip}` offset work even with OBS **automatic
+file splitting**: the script re-stamps it on OBS's `file_changed` signal every
+time a split rolls over to a new file, so the offset is measured from the start
+of the *current* file, not the whole session. (This is why session start alone
+isn't enough.)
+
+**Requires OBS 28 or newer** for the `file_changed` signal. On older OBS the
+session header still works, but `{clip}` won't reset across splits.
 
 ## Setup
 
-1. In OBS: Tools, Scripts, add `gamenote-session.lua`. Set "Session folder" to a
-   folder gamenote can read (for example `N:\Recordings`).
-2. In gamenote: open Settings, pick the profile, and under session headers:
-   - tick "Write session headers"
-   - tick "Read session value from a file (legacy OBS .current_session)"
-   - set "Session file" to `<that folder>\.current_session`
-3. Start recording in OBS. The next note filed by that profile gets a header like
-   `## Recording session: 2026-05-31_14-02-10`.
+1. **OBS:** Tools → Scripts → add `gamenote-obs.lua`. Set "Folder for
+   gamenote-obs.json" to a folder gamenote can read (e.g. `N:\Recordings`).
+2. **gamenote:** open Settings → Profiles, pick a profile, and enable whichever
+   you want (each points at the same `gamenote-obs.json`):
+   - **Session header from the recording's start time:** tick "Write session
+     headers", then "Read session value from a file", and set "Session file" to
+     `<folder>\gamenote-obs.json`.
+   - **Recording position in the line (`{clip}`):** tick "Stamp recording
+     position from an OBS file", set "Recording file" to
+     `<folder>\gamenote-obs.json`, and put `{clip}` in the **Line prefix**, e.g.
+     `[{clip}] `.
+   - **Game as context (optional):** Settings → Context → "Read context from a
+     file", pointed at the same `<folder>\gamenote-obs.json`.
+3. Start recording in OBS. Notes filed by that profile now carry the session
+   header and/or a `[mm:ss]` recording position. When you're not recording (or
+   the file is missing), gamenote falls back gracefully: the header uses the
+   date and `{clip}` is omitted (its empty `[]` is tidied away).
 
-This is per profile, so point each profile that should use it at the same file.
+## Backward compatibility
 
-## Notes
+Older setups used two plain-text files (`.current_session`, `.current_game`).
+gamenote still reads those: if a "Session file" / context file isn't JSON, it's
+treated as the old single-value text. So nothing breaks if you keep the old
+script — but to get `{clip}` you need this script (it provides `file_start`), and
+if you switch to it, repoint the profile's "Session file" (and context file) from
+`.current_session` / `.current_game` to `gamenote-obs.json`.
 
-- This script only writes `.current_session`. It does not set the game name; for
-  that, a profile can read its context from a file (Settings, Context, "Read
-  context from a file"), pointed at a `.current_game` file.
-- The full original workflow script (which also creates per-recording rename
-  `.bat` files and `.current_game`) is a separate, personal script and is not
-  shipped here.
+## Maintaining your own workflow script
+
+If you run a fuller personal OBS script (e.g. one that also writes rename `.bat`
+files), you don't need a second script — just write the same JSON from yours.
+The minimal pieces:
+
+```lua
+-- once: connect file_changed on RECORDING_STARTED so splits re-stamp file_start
+local sh = obs.obs_output_get_signal_handler(obs.obs_frontend_get_recording_output())
+obs.signal_handler_connect(sh, "file_changed", function(cd)
+  state.file_start = os.date("%Y-%m-%d_%H-%M-%S")
+  state.file_path  = obs.calldata_string(cd, "next_file")
+  write_gamenote_obs_json()   -- serialize game/session_start/file_start/file_path/recording
+end)
+
+-- write the JSON (obs_data handles escaping of backslash paths):
+local d = obs.obs_data_create()
+obs.obs_data_set_string(d, "game", game_name)
+obs.obs_data_set_string(d, "session_start", session_start)
+obs.obs_data_set_string(d, "file_start", file_start)
+obs.obs_data_set_string(d, "file_path", file_path)
+obs.obs_data_set_bool(d, "recording", true)   -- false on RECORDING_STOPPED
+local json = obs.obs_data_get_json(d)
+obs.obs_data_release(d)
+-- io.open(folder .. "\\gamenote-obs.json", "w"):write(json)
+```
+
+Timestamps must be `YYYY-MM-DD_HH-MM-SS` (gamenote also accepts ISO
+`YYYY-MM-DDTHH:MM:SS`). See `gamenote-obs.lua` in this folder for the complete,
+ready-to-use version.

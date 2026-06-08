@@ -113,6 +113,24 @@ class ProfileEditor(QWidget):
         self.session_hint = QLabel("Empty or missing file falls back to the date.")
         self.session_hint.setStyleSheet("color: #888;")
 
+        # Stamp the note's position into the current OBS recording, read from a
+        # gamenote-obs.json sidecar. The value fills the {clip} token in the prefix.
+        self.clip_from_file = QCheckBox("Stamp recording position from an OBS file")
+        self.clip_file = QLineEdit()
+        cf_browse = QPushButton("Browse...")
+        cf_browse.clicked.connect(self._browse_clip_file)
+        cf_row = QHBoxLayout()
+        cf_row.setContentsMargins(0, 0, 0, 0)
+        cf_row.addWidget(self.clip_file, 1)
+        cf_row.addWidget(cf_browse)
+        self.clip_file_widget = QWidget()
+        self.clip_file_widget.setLayout(cf_row)
+        self.clip_hint = QLabel('Reads gamenote-obs.json (see integrations/obs). Put '
+                                '{clip} in the line prefix, e.g. "[{clip}] ". Omitted '
+                                'when no recording is active.')
+        self.clip_hint.setWordWrap(True)
+        self.clip_hint.setStyleSheet("color: #888;")
+
         self.hotkey_beep = QCheckBox("Beep when this profile's hotkey fires")
 
         self.preview = QLabel("-")
@@ -132,6 +150,9 @@ class ProfileEditor(QWidget):
         form.addRow("", self.session_from_file)
         form.addRow("Session file", self.session_file_widget)
         form.addRow("", self.session_hint)
+        form.addRow("", self.clip_from_file)
+        form.addRow("Recording file", self.clip_file_widget)
+        form.addRow("", self.clip_hint)
         form.addRow("", self.hotkey_beep)
         form.addRow("Resolved path", self.preview)
         tokens = QLabel("Tokens: {profile} {context} {date} {time}")
@@ -156,9 +177,12 @@ class ProfileEditor(QWidget):
         self.use_session_headers.toggled.connect(self._on_edit)
         self.session_from_file.toggled.connect(self._on_edit)
         self.session_file.textChanged.connect(self._on_edit)
+        self.clip_from_file.toggled.connect(self._on_edit)
+        self.clip_file.textChanged.connect(self._on_edit)
         self.hotkey_beep.toggled.connect(self._on_edit)
         self.use_session_headers.toggled.connect(self._sync_session_enable)
         self.session_from_file.toggled.connect(self._sync_session_enable)
+        self.clip_from_file.toggled.connect(self._sync_clip_enable)
 
         self.setEnabled(False)
 
@@ -178,13 +202,17 @@ class ProfileEditor(QWidget):
             self.use_session_headers.setChecked(profile.use_session_headers)
             self.session_from_file.setChecked(profile.session_from_file)
             self.session_file.setText(profile.session_file)
+            self.clip_from_file.setChecked(profile.clip_from_file)
+            self.clip_file.setText(profile.clip_file)
             self.hotkey_beep.setChecked(profile.hotkey_beep)
         else:
             for w in (self.name, self.hotkey, self.dest_root, self.path_template,
-                      self.timestamp_format, self.prefix, self.session_file):
+                      self.timestamp_format, self.prefix, self.session_file,
+                      self.clip_file):
                 w.clear()
         self._loading = False
         self._sync_session_enable()
+        self._sync_clip_enable()
         self._update_preview()
 
     def _on_edit(self, *_args) -> None:
@@ -201,6 +229,8 @@ class ProfileEditor(QWidget):
         p.use_session_headers = self.use_session_headers.isChecked()
         p.session_from_file = self.session_from_file.isChecked()
         p.session_file = self.session_file.text().strip()
+        p.clip_from_file = self.clip_from_file.isChecked()
+        p.clip_file = self.clip_file.text().strip()
         p.hotkey_beep = self.hotkey_beep.isChecked()
         self._update_preview()
         self.changed.emit()
@@ -211,6 +241,11 @@ class ProfileEditor(QWidget):
         from_file = headers and self.session_from_file.isChecked()
         self.session_file_widget.setEnabled(from_file)
         self.session_hint.setEnabled(from_file)
+
+    def _sync_clip_enable(self, *_args) -> None:
+        on = self.clip_from_file.isChecked()
+        self.clip_file_widget.setEnabled(on)
+        self.clip_hint.setEnabled(on)
 
     def _update_preview(self) -> None:
         if self._profile is None:
@@ -242,6 +277,14 @@ class ProfileEditor(QWidget):
         if chosen:
             self.session_file.setText(chosen)
 
+    def _browse_clip_file(self) -> None:
+        start = self.clip_file.text() or ""
+        chosen, _ = QFileDialog.getOpenFileName(
+            self, "Choose gamenote-obs.json file", start, "JSON (*.json);;All files (*)"
+        )
+        if chosen:
+            self.clip_file.setText(chosen)
+
     def _restore_defaults(self) -> None:
         if self._profile is None:
             return
@@ -271,6 +314,8 @@ class ProfileEditor(QWidget):
         p.use_session_headers = src.use_session_headers
         p.session_from_file = src.session_from_file
         p.session_file = src.session_file
+        p.clip_from_file = src.clip_from_file
+        p.clip_file = src.clip_file
         p.hotkey_beep = src.hotkey_beep
         # p.id is the profile's identity and is left unchanged.
         self.set_profile(p)

@@ -49,13 +49,18 @@ Examples (with the default root):
 ### Line format and session headers
 
 - Each note is `- [timestamp] prefix text`, where the timestamp format and the
-  optional prefix are per profile.
+  optional prefix are per profile. The prefix may include a `{clip}` token that
+  expands to the note's position in the current OBS recording (for example
+  `06:12`); see the OBS bullet below.
 - With session headers enabled, a `## Recording session: YYYY-MM-DD` header is
   written when the file is new or the date changed. Disable headers for a flat
   append.
-- Optional (legacy, OBS): a profile can instead read the session value from a
-  `.current_session` file, so the header carries the recording's start time. See
-  `integrations/obs/` for the small OBS script and setup.
+- Optional (OBS): with the small script in `integrations/obs/`, a profile can
+  read recording info from a `gamenote-obs.json` sidecar — the session header
+  carries the recording's start time, and the `{clip}` prefix token stamps how
+  far into the recording each note is (and stays correct across OBS file splits).
+  The older plain-text `.current_session` / `.current_game` files still work. See
+  `integrations/obs/` for setup.
 
 ## Config
 

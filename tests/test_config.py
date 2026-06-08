@@ -1,4 +1,5 @@
 import json
+from pathlib import Path
 
 from gamenote import config
 
@@ -48,3 +49,23 @@ def test_default_profile_dict():
 
 def test_default_dest_root_under_documents():
     assert config.default_dest_root().replace("\\", "/").endswith("gamenote")
+
+
+def test_example_config_matches_defaults():
+    """config.example.json must mirror DEFAULT_CONFIG's key shape, so a new
+    config key can't land in one and be forgotten in the other (values may differ,
+    e.g. the example's literal dest_root)."""
+    example_path = Path(__file__).resolve().parents[1] / "config.example.json"
+    example = json.loads(example_path.read_text(encoding="utf-8"))
+
+    def shape(obj):
+        if isinstance(obj, dict):
+            return {k: shape(v) for k, v in obj.items()}
+        if isinstance(obj, list):
+            return [shape(v) for v in obj]
+        return None  # leaf value ignored; only keys/structure matter
+
+    assert shape(example) == shape(config.DEFAULT_CONFIG)
+    # explicit guards for the keys recent features added
+    assert "device" in example["global"]
+    assert all("clip_from_file" in p and "clip_file" in p for p in example["profiles"])
