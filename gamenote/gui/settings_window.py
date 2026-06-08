@@ -78,6 +78,9 @@ class SettingsWindow(QDialog):
         self.setWindowTitle("gamenote settings")
         self.resize(760, 720)
         self.setMinimumWidth(560)
+        # Delete on close so a reopened window is fresh; app.open_settings forgets
+        # its reference on destroy (no leaked/duplicate hidden dialogs).
+        self.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose, True)
         self.cfg = cfg
         self.on_apply = on_apply
         self.working_profiles: list[Profile] = [

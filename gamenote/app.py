@@ -213,6 +213,14 @@ def main() -> int:
             return
         win = SettingsWindow(cfg, on_apply)
         windows["settings"] = win
+
+        def _forget(_obj=None, _win=win):
+            # On close the dialog deletes itself (WA_DeleteOnClose); drop our
+            # reference, but only if it is still the current one.
+            if windows.get("settings") is _win:
+                windows.pop("settings", None)
+
+        win.destroyed.connect(_forget)
         win.show()
         win.raise_()
         win.activateWindow()

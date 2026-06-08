@@ -151,10 +151,13 @@ class MicMeter(QWidget):
         self.button.setText("Stop meter")
 
     def _stop(self) -> None:
-        if self._worker is not None:
-            self._worker.stop()
+        worker, thread = self._worker, self._thread
         self._worker = None
         self._thread = None
+        if worker is not None:
+            worker.stop()
+        if thread is not None and thread.is_alive():
+            thread.join(timeout=1.0)  # wait for the stream to close (releases the mic)
         self.button.setText("Start meter")
         self.button.setChecked(False)
         self.readout.setText("RMS: -    peak: -")
@@ -172,3 +175,10 @@ class MicMeter(QWidget):
     def stop(self) -> None:
         """Public stop, e.g. when the settings window closes."""
         self._stop()
+
+    def hideEvent(self, event) -> None:
+        # Release the mic whenever the meter is hidden -- window closed/minimized,
+        # or the user switched tabs -- so it never holds the device in the
+        # background or contends with a live recording.
+        self._stop()
+        super().hideEvent(event)
