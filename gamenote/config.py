@@ -202,9 +202,30 @@ def save_config(cfg: dict[str, Any]) -> None:
     path = config_path()
     path.parent.mkdir(parents=True, exist_ok=True)
     tmp = path.with_suffix(".json.tmp")
-    tmp.write_text(json.dumps(cfg, indent=2), encoding="utf-8")
+    with open(tmp, "w", encoding="utf-8") as f:
+        json.dump(cfg, f, indent=2)
+        f.flush()
+        os.fsync(f.fileno())  # durable on disk before the atomic replace
     tmp.replace(path)  # atomic on the same volume
     log.debug("Saved config to %s", path)
+
+
+def _recover_with_defaults(path: Path, reason: str) -> dict[str, Any]:
+    """Back up an unreadable/invalid config to ``config.json.bad`` and write fresh
+    defaults, so the user starts clean while their old file is preserved for
+    inspection rather than silently overwritten on the next save."""
+    log.error("Config at %s is unusable (%s); backing up to .bad and resetting.", path, reason)
+    try:
+        if path.exists():
+            path.replace(path.with_suffix(".json.bad"))
+    except OSError as e:
+        log.warning("Could not back up the bad config: %s", e)
+    cfg = default_config()
+    try:
+        save_config(cfg)
+    except OSError as e:
+        log.warning("Could not write fresh defaults: %s", e)
+    return cfg
 
 
 def load_config() -> dict[str, Any]:
@@ -220,11 +241,18 @@ def load_config() -> dict[str, Any]:
     try:
         loaded = json.loads(path.read_text(encoding="utf-8"))
     except (json.JSONDecodeError, OSError) as e:
-        log.error("Could not read config at %s (%s). Using defaults.", path, e)
-        return default_config()
+        return _recover_with_defaults(path, str(e))
 
     if not isinstance(loaded, dict):
-        log.error("Config at %s is not a JSON object. Using defaults.", path)
-        return default_config()
+        return _recover_with_defaults(path, "not a JSON object")
 
-    return _merge_defaults(loaded, DEFAULT_CONFIG)
+    merged = _merge_defaults(loaded, DEFAULT_CONFIG)
+    # Type-guard the top-level shape so a hand-edited scalar can't crash later
+    # access (e.g. cfg["global"]["context"]).
+    if not isinstance(merged.get("global"), dict):
+        log.error("Config 'global' is not an object; resetting it to defaults.")
+        merged["global"] = default_global()
+    if not isinstance(merged.get("profiles"), list):
+        log.error("Config 'profiles' is not a list; resetting to defaults.")
+        merged["profiles"] = copy.deepcopy(DEFAULT_CONFIG["profiles"])
+    return merged

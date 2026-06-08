@@ -11,7 +11,7 @@ import json
 import re
 from dataclasses import dataclass, field
 from datetime import datetime
-from pathlib import Path
+from pathlib import Path, PureWindowsPath
 from typing import Any
 
 # Characters Windows forbids in a path component, plus we trim trailing dots and
@@ -266,6 +266,15 @@ def validate_profiles(profiles: list[Profile]) -> list[str]:
                     f"'{seen_hotkeys[p.hotkey]}' and '{label}'"
                 )
             seen_hotkeys[p.hotkey] = label
+
+        # The template must stay relative to dest_root: an absolute or '..' path
+        # would escape it (Path(dest_root) / "C:\\x" yields "C:\\x").
+        if p.path_template:
+            tmpl = PureWindowsPath(p.path_template.replace("/", "\\"))
+            if tmpl.is_absolute() or tmpl.drive or p.path_template.startswith(("\\", "/")):
+                errors.append(f"{label}: path template must be relative (no drive or leading slash)")
+            if ".." in tmpl.parts:
+                errors.append(f"{label}: path template must not contain '..'")
 
     return errors
 

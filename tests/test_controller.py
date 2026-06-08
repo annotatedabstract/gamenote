@@ -158,6 +158,15 @@ def test_busy_press_is_rejected(qapp, monkeypatch):
     assert "append" not in calls
 
 
+def test_load_failed_shows_model_error(qapp, monkeypatch):
+    transcriber = _FakeTranscriber(ready=False)
+    transcriber.load_failed = True  # model load exhausted all attempts
+    ctl, msgs, calls = _build(monkeypatch, transcriber)
+    ctl.on_profile("editing")
+    assert any("model error" in m for m in msgs)
+    assert not any("loading" in m for m in msgs)
+
+
 def test_toggle_second_press_signals_stop(qapp, monkeypatch):
     ctl, msgs, calls = _build(monkeypatch, _FakeTranscriber(), record_result=object())
     ctl.is_recording = True

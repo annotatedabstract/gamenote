@@ -66,7 +66,10 @@ class Controller(QObject):
             return
 
         if not self.transcriber.ready:
-            self.overlay_message.emit("loading...", _C_WARN, False, "none")
+            if getattr(self.transcriber, "load_failed", False):
+                self.overlay_message.emit("model error", _C_ERROR, False, "none")
+            else:
+                self.overlay_message.emit("loading...", _C_WARN, False, "none")
             return
 
         with self.lock:

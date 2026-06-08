@@ -69,3 +69,26 @@ def test_example_config_matches_defaults():
     # explicit guards for the keys recent features added
     assert "device" in example["global"]
     assert all("clip_from_file" in p and "clip_file" in p for p in example["profiles"])
+
+
+def test_load_recovers_from_corrupt_json(appdata):
+    path = config.config_path()
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text("{ this is not valid json ", encoding="utf-8")
+
+    cfg = config.load_config()
+    assert cfg["version"] == config.CONFIG_VERSION          # fell back to defaults
+    assert path.with_suffix(".json.bad").exists()           # corrupt file preserved
+    assert path.exists()                                    # fresh defaults written
+
+
+def test_load_guards_non_dict_global(appdata):
+    path = config.config_path()
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(
+        json.dumps({"version": 1, "global": "oops", "profiles": []}), encoding="utf-8"
+    )
+
+    cfg = config.load_config()
+    assert isinstance(cfg["global"], dict)                  # reset from the bad scalar
+    assert cfg["global"]["model_size"] == "small.en"

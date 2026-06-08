@@ -53,6 +53,19 @@ def test_sanitize_part():
     assert sanitize_part('a<b>:c"|?*') == "abc"
 
 
+def test_validate_allows_relative_template():
+    ok = Profile("c", "C", "f3", "d", r"{context}\notes.md")
+    assert validate_profiles([ok]) == []
+
+
+def test_validate_flags_unsafe_path_templates():
+    absolute = Profile("a", "A", "f1", "d", r"C:\evil.md")
+    traversal = Profile("b", "B", "f2", "d2", r"..\secrets.md")
+    errors = validate_profiles([absolute, traversal])
+    assert any("relative" in e.lower() for e in errors)
+    assert any(".." in e for e in errors)
+
+
 def test_validate_profiles_flags_dupes_and_empties():
     a = Profile("e", "E", "f1", "d", "x.md")
     b = Profile("e", "", "f1", "", "y.md")  # dup id, dup hotkey, empty name + dest_root

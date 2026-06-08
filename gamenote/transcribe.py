@@ -161,6 +161,7 @@ class Transcriber:
         self.device: str = ""
         self.loaded_model_size: str = ""  # remembers what load() actually loaded
         self.loaded_device_pref: str = ""  # the device setting load() honored
+        self.load_failed: bool = False  # True once load() has exhausted all attempts
 
     @property
     def ready(self) -> bool:
@@ -181,6 +182,7 @@ class Transcriber:
         cannot initialize)."""
         from faster_whisper import WhisperModel  # lazy import keeps module load light
 
+        self.load_failed = False
         model_size = self.cfg["model_size"]
         device_pref = str(self.cfg.get("device", "auto")).strip().lower()
         source, extra = resolve_model_source(model_size)
@@ -204,6 +206,7 @@ class Transcriber:
             self.loaded_device_pref = device_pref
             log.info("Loaded model '%s' on %s (%s).", model_size, device.upper(), compute_type)
             return device
+        self.load_failed = True
         raise last_exc if last_exc else RuntimeError("No device attempts configured")
 
     def transcribe(self, audio: "np.ndarray") -> str:
