@@ -1,8 +1,8 @@
 """Profiles, the destination resolver, and the line-format renderer.
 
 A profile decides where a note goes and how the appended line looks. The model
-and all capture/VAD tuning stay global (see the handoff Section 3); a profile is
-purely about destination and format.
+and all capture/VAD tuning stay global; a profile is purely about destination
+and format.
 """
 
 from __future__ import annotations

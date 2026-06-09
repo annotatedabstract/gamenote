@@ -2,7 +2,7 @@
 
 Single-instance guard, QApplication, model load on a background thread, and the
 wiring between the hotkey listener, the controller, the overlay, and the tray.
-The app launches to the tray with no window open (handoff Section 4).
+The app launches to the tray with no window open.
 """
 
 from __future__ import annotations

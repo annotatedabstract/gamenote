@@ -2,8 +2,8 @@
 
 The ``keyboard`` library runs its own listener thread and fires callbacks
 off-thread. This module only registers and unregisters; it does not touch any
-GUI. In the Qt stages the callback will emit a queued signal so the real work
-runs on the main thread (handoff Section 4).
+GUI. The registered callback emits a queued Qt signal so the real work runs on
+the main thread.
 """
 
 from __future__ import annotations

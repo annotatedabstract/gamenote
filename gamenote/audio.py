@@ -1,5 +1,4 @@
-"""Microphone capture with energy-based VAD endpointing (lifted from the
-original daemon's ``record_note``).
+"""Microphone capture with energy-based VAD endpointing.
 
 This module does no UI. It records until trailing silence, ``stop_event``, or
 ``max_seconds``, and returns the captured audio (or None if nothing usable was
@@ -24,7 +23,7 @@ class AudioCaptureError(Exception):
 
 def list_input_devices() -> list[tuple[int, str]]:
     """Return ``(index, name)`` for devices that have input channels. Used by
-    the settings GUI device dropdown (Stage 4)."""
+    the settings GUI device dropdown."""
     devices = []
     try:
         for i, dev in enumerate(sd.query_devices()):

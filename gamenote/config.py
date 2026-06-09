@@ -6,10 +6,8 @@ defaults, loading (creating the file with defaults on first run), saving, and
 a forward-compatible merge so a config written by an older version still loads
 when new keys are added.
 
-Stage 1 keeps this dict-based. The typed ``Profile`` dataclass and the
-destination resolver arrive in Stage 2 (``profiles.py``); the shape stored here
-already matches Section 5 of the handoff so that later stages only add code,
-not migrations.
+The config is stored as plain dicts here; the typed ``Profile`` dataclass and
+the destination resolver live in ``profiles.py`` and read from this shape.
 """
 
 from __future__ import annotations

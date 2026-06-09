@@ -3,7 +3,7 @@
 The ``keyboard`` listener thread fires a hotkey callback that calls
 :meth:`Controller.trigger.emit(profile_id)`. ``trigger`` is connected to
 :meth:`Controller.on_profile` with a queued connection, so the slot runs on the
-main (GUI) thread (handoff Section 4). ``on_profile`` then spawns a worker thread
+main (GUI) thread. ``on_profile`` then spawns a worker thread
 for the blocking record + transcribe + file work; the worker reports progress by
 emitting ``overlay_message``, which the overlay renders on the main thread.
 
@@ -27,7 +27,7 @@ from .transcribe import Transcriber
 
 log = logging.getLogger("gamenote.controller")
 
-# Overlay colors (kept close to the original daemon's palette).
+# Overlay text colors.
 _C_LISTENING = "#cfe8ff"
 _C_SAVED = "#bff7c1"
 _C_MUTED = "#cccccc"

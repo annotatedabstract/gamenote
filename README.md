@@ -10,8 +10,9 @@ game, and routes notes through switchable profiles.
 
 ![gamenote demo](gamenote.gif)
 
-This is the standalone desktop version. It no longer depends on OBS. The older
-OBS based workflow is documented in `docs/gamenote-setup.md` and is now legacy.
+This is the standalone desktop version. It no longer depends on OBS; OBS is now
+an optional integration (recording-aware session headers and a `{clip}` token),
+not a requirement. See `integrations/obs/` if you record with OBS.
 
 ## Concepts
 

@@ -1,10 +1,10 @@
 """Note file writing: path resolution glue, the session-header tail-scan, and
 the append itself, generalized to take a :class:`~gamenote.profiles.Profile`.
 
-The session-header logic is lifted from the original daemon unchanged in spirit:
-read the last 8 KB of the file, find the most recent ``## Recording session:``
-header, and only write a new header when the file is new or the value changed.
-Without OBS there is no recording timestamp, so the header value is the date.
+The session-header logic reads the last 8 KB of the file, finds the most recent
+``## Recording session:`` header, and only writes a new header when the file is
+new or the value changed. Without OBS there is no recording timestamp, so the
+header value is the date.
 """
 
 from __future__ import annotations

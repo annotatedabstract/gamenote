@@ -1,5 +1,4 @@
-"""Model loading, warmup, and transcription (lifted from the original daemon's
-``load_model`` / ``_warmup`` / ``transcribe``).
+"""Model loading, warmup, and transcription.
 
 The NVIDIA DLL setup must run before ``faster_whisper`` is imported, so it lives
 at module import time here. The shipped build targets CPU (int8); the CUDA path
