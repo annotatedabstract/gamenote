@@ -2,8 +2,15 @@ import json
 from unittest import mock
 
 import pytest
+from PySide6.QtCore import QCoreApplication
 
 from gamenote import updater
+
+
+@pytest.fixture(scope="module")
+def qapp():
+    # Qt signals need an application instance; QCoreApplication needs no GUI.
+    return QCoreApplication.instance() or QCoreApplication([])
 
 
 def test_parse_version():
@@ -55,12 +62,15 @@ def test_check_latest_none_without_exe_asset(monkeypatch):
     assert updater.check_latest() is None
 
 
-def test_check_latest_none_on_network_error(monkeypatch):
+def test_check_latest_raises_on_network_error(monkeypatch):
+    # A transport failure must propagate so the caller can distinguish it from
+    # "up to date" (both used to collapse into None).
     def boom(*a, **k):
         raise OSError("offline")
 
     monkeypatch.setattr(updater.urllib.request, "urlopen", boom)
-    assert updater.check_latest() is None
+    with pytest.raises(OSError):
+        updater.check_latest()
 
 
 class _FakeResp:
@@ -108,3 +118,27 @@ def test_download_rejects_untrusted_url(monkeypatch, tmp_path):
         updater.download("http://github.com/o/r/setup.exe")  # not https
     with pytest.raises(ValueError):
         updater.download("https://evil.example/setup.exe")  # not a GitHub host
+
+
+def test_check_emits_failed_when_offline(qapp, monkeypatch):
+    def boom(*a, **k):
+        raise OSError("offline")
+
+    monkeypatch.setattr(updater.urllib.request, "urlopen", boom)
+    up = updater.Updater()
+    seen: dict[str, object] = {}
+    up.failed.connect(lambda manual, msg: seen.update(failed=manual))
+    up.up_to_date.connect(lambda manual: seen.update(up_to_date=manual))
+    up._check(manual=True)
+    assert seen == {"failed": True}  # offline is a failure, not "up to date"
+
+
+def test_check_emits_up_to_date_when_current(qapp, monkeypatch):
+    payload = {"tag_name": "v0.0.1", "assets": []}  # older than the running version
+    monkeypatch.setattr(updater.urllib.request, "urlopen", _fake_urlopen(payload))
+    up = updater.Updater()
+    seen: dict[str, object] = {}
+    up.failed.connect(lambda manual, msg: seen.update(failed=manual))
+    up.up_to_date.connect(lambda manual: seen.update(up_to_date=manual))
+    up._check(manual=True)
+    assert seen == {"up_to_date": True}

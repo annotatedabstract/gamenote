@@ -6,6 +6,10 @@ versioning.
 
 ## [Unreleased]
 
+### Fixed
+- A manual "Check for updates" while offline now reports that the check could
+  not be completed, instead of incorrectly saying you are on the latest version.
+
 ## [1.3.0] - 2026-06-08
 
 ### Added

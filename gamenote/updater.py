@@ -64,15 +64,16 @@ class UpdateInfo:
 
 
 def check_latest(timeout: float = 10.0) -> UpdateInfo | None:
-    """Return UpdateInfo if the latest release is newer than the running version,
-    else None (also None on any error: offline, rate-limited, no asset)."""
-    try:
-        req = urllib.request.Request(_API_LATEST, headers=_HEADERS)
-        with urllib.request.urlopen(req, timeout=timeout) as resp:
-            data = json.loads(resp.read().decode("utf-8"))
-    except Exception as e:
-        log.info("Update check failed: %s", e)
-        return None
+    """Fetch the latest release and return UpdateInfo if it is newer than the
+    running version, or None if the running version is already current (or a
+    newer release carries no usable installer asset).
+
+    Raises on a transport or decode failure (offline, timeout, rate-limited,
+    malformed response) so the caller can tell "could not check" apart from
+    "up to date", which both used to collapse into None."""
+    req = urllib.request.Request(_API_LATEST, headers=_HEADERS)
+    with urllib.request.urlopen(req, timeout=timeout) as resp:
+        data = json.loads(resp.read().decode("utf-8"))
 
     tag = str(data.get("tag_name", ""))
     if parse_version(tag) <= parse_version(current_version()):
@@ -173,7 +174,8 @@ class Updater(QObject):
     def _check(self, manual: bool) -> None:
         try:
             info = check_latest()
-        except Exception as e:  # defensive; check_latest already swallows
+        except Exception as e:  # offline, timeout, rate-limited, malformed response
+            log.info("Update check could not complete: %s", e)
             self.failed.emit(manual, str(e))
             return
         if info is not None:
