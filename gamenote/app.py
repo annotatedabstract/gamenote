@@ -237,15 +237,19 @@ def main() -> int:
     pending_update: dict = {"info": None}
 
     def do_check(manual: bool = False) -> None:
-        updater.check_async(manual)
+        # Read the channel at call time: settings Apply mutates global_cfg in
+        # place, so a channel change applies to the very next check.
+        channel = str(global_cfg.get("update_channel", "stable")).lower()
+        updater.check_async(manual, channel=channel)
 
     def on_update_available(info) -> None:
         pending_update["info"] = info
         tray.set_update_available(info.version)
-        tray.show_message(
-            "gamenote update available",
-            f"Version {info.version} is available. Open the menu to install.",
-        )
+        if getattr(info, "channel", "stable") == "dev":
+            body = f"Build {info.version} is available. Open the menu to install."
+        else:
+            body = f"Version {info.version} is available. Open the menu to install."
+        tray.show_message("gamenote update available", body)
 
     def on_up_to_date(manual: bool) -> None:
         if manual:
@@ -270,7 +274,8 @@ def main() -> int:
         if info is None:
             return
         if not gn_updater.is_frozen():
-            webbrowser.open(gn_updater.RELEASES_URL)
+            dev = getattr(info, "channel", "stable") == "dev"
+            webbrowser.open(gn_updater.DEV_RELEASES_URL if dev else gn_updater.RELEASES_URL)
             return
         tray.show_message("gamenote", f"Downloading update {info.version} (~90 MB)...")
         updater.download_async(info)

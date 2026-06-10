@@ -11,6 +11,7 @@ def test_load_creates_defaults(appdata):
     assert {p["id"] for p in cfg["profiles"]} == {"editing", "bugs", "daily"}
     assert cfg["global"]["launch_sound"] is True
     assert cfg["global"]["auto_update"] is True
+    assert cfg["global"]["update_channel"] == "stable"
     assert cfg["global"]["language"] == "en"
     assert cfg["global"]["device"] == "auto"
     assert all(p["capture_mode"] == "vad" for p in cfg["profiles"])
@@ -32,6 +33,7 @@ def test_merge_backfills_missing_keys(appdata):
     assert cfg["global"]["model_size"] == "base.en"  # user value preserved
     assert cfg["global"]["launch_sound"] is True  # backfilled from defaults
     assert cfg["global"]["auto_update"] is True  # backfilled
+    assert cfg["global"]["update_channel"] == "stable"  # backfilled
     assert cfg["profiles"][0]["id"] == "x"  # user profiles taken as-is
 
 

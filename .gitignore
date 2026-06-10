@@ -29,6 +29,9 @@ build/
 dist/
 *.spec.bak
 
+# Build identity stamped by packaging/build.sh (bundled into the frozen app)
+build_info.json
+
 # Build-local model cache (downloaded by build.sh, bundled into dist; too large for git)
 packaging/model_cache/
 

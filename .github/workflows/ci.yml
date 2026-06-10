@@ -4,6 +4,7 @@ on:
   push:
     branches: [main]
   pull_request:
+  workflow_dispatch:
 
 jobs:
   test:
@@ -27,3 +28,81 @@ jobs:
           ruff format --check gamenote main.pyw tests
       - name: Test (pytest)
         run: pytest --cov=gamenote --cov-report=term-missing
+
+  # Rolling dev build: every green push to main (or a manual dispatch from main)
+  # rebuilds the installer and republishes it to the 'dev' prerelease. Stable
+  # users are unaffected: /releases/latest never returns prereleases.
+  build-dev:
+    needs: test
+    if: >-
+      (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
+      && github.ref == 'refs/heads/main'
+    runs-on: windows-latest
+    permissions:
+      contents: write
+    concurrency:
+      group: dev-release
+      cancel-in-progress: true
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          # The newest matrix-tested version. Local stable releases are built on
+          # the maintainer's Python (3.14); dev builds accept this difference.
+          python-version: "3.12"
+          cache: pip
+      - name: Install build dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt pyinstaller
+      - name: Build the app (stamps build_info.json)
+        shell: bash
+        run: bash packaging/build.sh
+      - name: Build the installer
+        shell: pwsh
+        run: |
+          $short = "${{ github.sha }}".Substring(0, 7)
+          $base = python -c "import gamenote; print(gamenote.__version__)"
+          & "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe" `
+            "/DMyAppVersion=${base}-dev.${short}" packaging\installer.iss
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          # Fixed asset name so 'gh release upload --clobber' replaces instead
+          # of accumulating versioned files.
+          Move-Item "packaging\installer_output\gamenote-setup-${base}-dev.${short}.exe" `
+            "packaging\installer_output\gamenote-setup-dev.exe" -Force
+      - name: Publish the dev prerelease
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          short="${GITHUB_SHA:0:7}"
+          commit=$(python -c "import json; print(json.load(open('build_info.json'))['commit'])")
+          built_at=$(python -c "import json; print(json.load(open('build_info.json'))['built_at'])")
+          version=$(python -c "import json; print(json.load(open('build_info.json'))['version'])")
+          # The bundled identity must be this run's commit, or the dedupe in the
+          # app's updater would misbehave.
+          test "$commit" = "$GITHUB_SHA"
+
+          # 1) Move the rolling tag (creates it on the first run). GITHUB_TOKEN
+          #    pushes never retrigger workflows, and on.push filters branches only.
+          git push --force origin "$GITHUB_SHA:refs/tags/dev"
+
+          # 2) Ensure the prerelease exists. Placeholder body: clients ignore a
+          #    body without commit/built_at lines.
+          if ! gh release view dev >/dev/null 2>&1; then
+            gh release create dev --prerelease --verify-tag \
+              --title "dev build ($short)" --notes "publishing..."
+          fi
+
+          # 3) Replace the asset.
+          gh release upload dev packaging/installer_output/gamenote-setup-dev.exe --clobber
+
+          # 4) Update the body LAST. The body is what makes clients act; writing
+          #    it after the asset means a mid-publish reader sees the previous
+          #    (consistent) state, never an offer whose asset is missing.
+          notes=$(printf '%s\n\n%s\n\ncommit: %s\nbuilt_at: %s\nversion: %s\n' \
+            "Automated development build from the latest push to main." \
+            "Installed via the in-app update channel (Settings -> Updates -> Channel: Development builds). May be broken; to go back, switch the channel to Stable releases and reinstall the latest stable release." \
+            "$commit" "$built_at" "$version")
+          gh release edit dev --prerelease --title "dev build ($short)" --notes "$notes"

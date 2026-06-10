@@ -52,6 +52,11 @@ _DEVICE_CHOICES = [
     ("Force GPU (CUDA)", "cuda"),
     ("Force CPU", "cpu"),
 ]
+# (label, stored value) for the update Channel combo; matches config "update_channel".
+_CHANNEL_CHOICES = [
+    ("Stable releases", "stable"),
+    ("Development builds", "dev"),
+]
 
 
 class _WheelGuard(QObject):
@@ -171,6 +176,9 @@ class SettingsWindow(QDialog):
         self.hotkey_beep_file.setPlaceholderText("(default tone) custom .wav...")
 
         self.auto_update = QCheckBox("Automatically check for updates on launch")
+        self.update_channel = QComboBox()
+        for _label, _value in _CHANNEL_CHOICES:
+            self.update_channel.addItem(_label, _value)
 
         self.log_level = QComboBox()
         self.log_level.addItems(_LOG_LEVELS)
@@ -240,9 +248,19 @@ class SettingsWindow(QDialog):
         updates_box = QGroupBox("Updates")
         uform = QFormLayout(updates_box)
         uform.addRow("", self.auto_update)
+        uform.addRow("Channel", self.update_channel)
         unote = QLabel("Checks GitHub Releases. Installing downloads the installer (~90 MB).")
         unote.setStyleSheet("color: #888;")
         uform.addRow("", unote)
+        dev_note = QLabel(
+            "Development builds are published automatically from every change "
+            "that passes the tests. They may be broken. To go back, switch to "
+            "Stable releases and reinstall the latest stable release from the "
+            "releases page."
+        )
+        dev_note.setWordWrap(True)
+        dev_note.setStyleSheet("color: #888;")
+        uform.addRow("", dev_note)
 
         misc_box = QGroupBox("Logging")
         miform = QFormLayout(misc_box)
@@ -278,7 +296,13 @@ class SettingsWindow(QDialog):
         # Stop combo/spin boxes from hijacking the mouse wheel, and keep a long
         # device name from forcing the field (and window) wider than it should be.
         guard = _WheelGuard(scroll)
-        combos = (self.model_size, self.device, self.input_device, self.log_level)
+        combos = (
+            self.model_size,
+            self.device,
+            self.input_device,
+            self.update_channel,
+            self.log_level,
+        )
         spins = (
             self.beam_size,
             self.sample_rate,
@@ -354,6 +378,8 @@ class SettingsWindow(QDialog):
         self.launch_sound_file.setText(str(g.get("launch_sound_file", "")))
         self.hotkey_beep_file.setText(str(g.get("hotkey_beep_file", "")))
         self.auto_update.setChecked(bool(g.get("auto_update", True)))
+        ch_idx = self.update_channel.findData(str(g.get("update_channel", "stable")).lower())
+        self.update_channel.setCurrentIndex(ch_idx if ch_idx >= 0 else 0)
         self.log_level.setCurrentText(str(g.get("log_level", "INFO")))
 
         self.mic_meter.set_threshold(self.silence_threshold.value())
@@ -408,6 +434,7 @@ class SettingsWindow(QDialog):
             "launch_sound_file": self.launch_sound_file.text().strip(),
             "hotkey_beep_file": self.hotkey_beep_file.text().strip(),
             "auto_update": self.auto_update.isChecked(),
+            "update_channel": self.update_channel.currentData(),
             "context": {
                 "value": self.context_value.text().strip(),
                 "source": source,

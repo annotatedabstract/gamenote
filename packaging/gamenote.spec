@@ -52,6 +52,13 @@ for name in ("icon.ico", "icon.png"):
     if p.exists():
         datas.append((str(p), "gamenote/assets"))
 
+# Build identity stamped by build.sh (read by gamenote.updater.build_info for
+# the dev update channel). Absent in an unstamped build; the app treats that
+# as "identity unknown".
+_build_info = ROOT / "build_info.json"
+if _build_info.exists():
+    datas.append((str(_build_info), "."))
+
 a = Analysis(
     [str(ROOT / "main.pyw")],
     pathex=[str(ROOT)],

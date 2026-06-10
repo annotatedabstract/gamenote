@@ -18,6 +18,7 @@
     "launch_sound_file": "",
     "hotkey_beep_file": "",
     "auto_update": true,
+    "update_channel": "stable",
     "context": { "value": "", "source": "manual", "file_path": "" },
     "log_level": "INFO"
   },

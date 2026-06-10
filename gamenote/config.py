@@ -96,6 +96,7 @@ DEFAULT_CONFIG: dict[str, Any] = {
         "launch_sound_file": "",
         "hotkey_beep_file": "",
         "auto_update": True,
+        "update_channel": "stable",  # "stable" or "dev"; anything else means stable
         "context": {"value": "", "source": "manual", "file_path": ""},
         "log_level": "INFO",
     },

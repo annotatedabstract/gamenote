@@ -96,6 +96,18 @@ Or, from the folder build:
 5. Press a profile's hotkey, speak, and stop. After a short silence it files the
    note and the overlay confirms with the first words.
 
+### Update channels
+
+By default the app updates from stable releases. Settings → Updates → Channel
+offers an opt-in "Development builds" channel: CI publishes an automated build
+of every change that passes the tests to a rolling `dev` pre-release, and the
+in-app updater installs from it. Dev builds update often and may be broken — if
+one misbehaves, switch the channel back to "Stable releases" and reinstall the
+latest stable installer from the
+[releases page](https://github.com/annotatedabstract/gamenote/releases/latest)
+(a dev build identifies as its base version, so the stable checker will not
+offer it again until a newer stable release exists).
+
 ### Run as administrator (only if needed)
 
 If your game runs as administrator, Windows will not deliver the hotkey to a
@@ -176,6 +188,24 @@ installer is per user by default (no admin), with optional desktop and
 The installer (about 90 MB) is too large for the git repo, so distribute it as a
 GitHub Release asset, not a committed file. Tag a release and upload
 `gamenote-setup-<version>.exe` to it.
+
+### Automated dev builds (CI)
+
+Every push to `main` that passes the test matrix also builds the installer on CI
+and republishes it as `gamenote-setup-dev.exe` on the rolling `dev` pre-release
+(re-runnable from the Actions tab via workflow_dispatch). Stable users never see
+it: the updater's stable channel uses `releases/latest`, which excludes
+pre-releases. Details:
+
+- `packaging/build.sh` stamps a gitignored `build_info.json` (commit, build
+  time) that the spec bundles; the in-app dev channel compares it against the
+  `commit:` / `built_at:` lines in the dev release body, which CI composes from
+  the same file.
+- CI builds on Python 3.12 (the newest matrix-tested version); local stable
+  releases may use a newer Python. Accepted difference.
+- CI passes `/DMyAppVersion=<version>-dev.<sha>` to ISCC; the `#ifndef` guard in
+  `packaging/installer.iss` lets the command line win, so dev installs are
+  identifiable in Add/Remove Programs.
 
 ## Running from source (development)
 

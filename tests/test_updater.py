@@ -1,4 +1,6 @@
 import json
+import sys
+import urllib.error
 from unittest import mock
 
 import pytest
@@ -142,3 +144,173 @@ def test_check_emits_up_to_date_when_current(qapp, monkeypatch):
     up.up_to_date.connect(lambda manual: seen.update(up_to_date=manual))
     up._check(manual=True)
     assert seen == {"up_to_date": True}
+
+
+# --- dev channel ------------------------------------------------------------
+
+_DEV_SHA = "a" * 40
+_DEV_BODY = (
+    "Automated development build from the latest push to main.\n"
+    "\n"
+    "Installed via the in-app update channel (Settings -> Updates -> Channel: "
+    "Development builds). May be broken; to go back, switch the channel to "
+    "Stable releases and reinstall the latest stable release.\n"
+    "\n"
+    f"commit: {_DEV_SHA}\n"
+    "built_at: 2026-06-10T12:00:00Z\n"
+    "version: 1.3.0\n"
+)
+
+
+def _dev_payload(body=_DEV_BODY, assets=None):
+    if assets is None:
+        assets = [
+            {
+                "name": "gamenote-setup-dev.exe",
+                "size": 456,
+                "browser_download_url": "https://github.com/annotatedabstract/gamenote/"
+                "releases/download/dev/gamenote-setup-dev.exe",
+            }
+        ]
+    return {"tag_name": "dev", "prerelease": True, "body": body, "assets": assets}
+
+
+def test_parse_dev_body_parses_lf_and_crlf():
+    for body in (_DEV_BODY, _DEV_BODY.replace("\n", "\r\n")):
+        commit, built_at = updater._parse_dev_body(body)
+        assert commit == _DEV_SHA
+        assert built_at == "2026-06-10T12:00:00Z"
+
+
+def test_parse_dev_body_missing_or_malformed():
+    assert updater._parse_dev_body("") == (None, None)
+    assert updater._parse_dev_body("just prose, no machine lines") == (None, None)
+    short_sha = f"commit: {'a' * 39}\nbuilt_at: 2026-06-10T12:00:00Z\n"
+    assert updater._parse_dev_body(short_sha) == (None, "2026-06-10T12:00:00Z")
+    bad_date = f"commit: {_DEV_SHA}\nbuilt_at: yesterday\n"
+    assert updater._parse_dev_body(bad_date) == (_DEV_SHA, None)
+
+
+def test_build_info_reads_frozen_path(monkeypatch, tmp_path):
+    monkeypatch.setattr(sys, "_MEIPASS", str(tmp_path), raising=False)
+    stamp = {"commit": _DEV_SHA, "built_at": "2026-06-10T12:00:00Z", "version": "1.3.0"}
+    (tmp_path / "build_info.json").write_text(json.dumps(stamp), encoding="utf-8")
+    assert updater._build_info_path() == tmp_path / "build_info.json"
+    assert updater.build_info() == stamp
+
+
+def test_build_info_missing_or_garbage(monkeypatch, tmp_path):
+    missing = tmp_path / "missing.json"
+    monkeypatch.setattr(updater, "_build_info_path", lambda: missing)
+    assert updater.build_info() == {}
+    garbage = tmp_path / "garbage.json"
+    garbage.write_text("{ not json", encoding="utf-8")
+    monkeypatch.setattr(updater, "_build_info_path", lambda: garbage)
+    assert updater.build_info() == {}
+    not_dict = tmp_path / "list.json"
+    not_dict.write_text("[1, 2]", encoding="utf-8")
+    monkeypatch.setattr(updater, "_build_info_path", lambda: not_dict)
+    assert updater.build_info() == {}
+
+
+def test_check_dev_offers_when_commit_differs(monkeypatch):
+    monkeypatch.setattr(updater.urllib.request, "urlopen", _fake_urlopen(_dev_payload()))
+    monkeypatch.setattr(
+        updater, "build_info", lambda: {"commit": "b" * 40, "built_at": "2026-06-01T00:00:00Z"}
+    )
+    info = updater.check_dev()
+    assert info is not None
+    assert info.version == f"dev {_DEV_SHA[:7]}"
+    assert info.tag == "dev"
+    assert info.channel == "dev"
+    assert info.size == 456
+    assert info.url.endswith("gamenote-setup-dev.exe")
+
+
+def test_check_dev_none_when_same_commit(monkeypatch):
+    monkeypatch.setattr(updater.urllib.request, "urlopen", _fake_urlopen(_dev_payload()))
+    monkeypatch.setattr(
+        updater, "build_info", lambda: {"commit": _DEV_SHA, "built_at": "2026-06-10T12:00:00Z"}
+    )
+    assert updater.check_dev() is None
+
+
+def test_check_dev_none_on_downgrade(monkeypatch):
+    # A different commit whose published build is not newer than ours must not
+    # be offered (stale body or a re-published older build).
+    monkeypatch.setattr(updater.urllib.request, "urlopen", _fake_urlopen(_dev_payload()))
+    for own_built_at in ("2026-06-10T12:00:00Z", "2026-06-11T00:00:00Z"):
+        monkeypatch.setattr(
+            updater, "build_info", lambda at=own_built_at: {"commit": "b" * 40, "built_at": at}
+        )
+        assert updater.check_dev() is None
+
+
+def test_check_dev_offers_when_own_identity_unknown(monkeypatch):
+    monkeypatch.setattr(updater.urllib.request, "urlopen", _fake_urlopen(_dev_payload()))
+    monkeypatch.setattr(updater, "build_info", lambda: {})
+    info = updater.check_dev()
+    assert info is not None and info.channel == "dev"
+
+
+def test_check_dev_none_when_body_lacks_fields(monkeypatch):
+    payload = _dev_payload(body="hand-edited prose with no machine lines")
+    monkeypatch.setattr(updater.urllib.request, "urlopen", _fake_urlopen(payload))
+    monkeypatch.setattr(updater, "build_info", lambda: {})
+    assert updater.check_dev() is None
+
+
+def test_check_dev_none_without_usable_asset(monkeypatch):
+    monkeypatch.setattr(updater, "build_info", lambda: {})
+    no_exe = _dev_payload(assets=[{"name": "notes.txt", "browser_download_url": "u"}])
+    monkeypatch.setattr(updater.urllib.request, "urlopen", _fake_urlopen(no_exe))
+    assert updater.check_dev() is None
+    untrusted = _dev_payload(
+        assets=[{"name": "x.exe", "size": 1, "browser_download_url": "https://evil.example/x.exe"}]
+    )
+    monkeypatch.setattr(updater.urllib.request, "urlopen", _fake_urlopen(untrusted))
+    assert updater.check_dev() is None
+
+
+def test_check_dev_404_means_no_update(monkeypatch):
+    def gone(*a, **k):
+        raise urllib.error.HTTPError("u", 404, "Not Found", None, None)
+
+    monkeypatch.setattr(updater.urllib.request, "urlopen", gone)
+    assert updater.check_dev() is None  # no dev release published yet
+
+    def broken(*a, **k):
+        raise urllib.error.HTTPError("u", 500, "Server Error", None, None)
+
+    monkeypatch.setattr(updater.urllib.request, "urlopen", broken)
+    with pytest.raises(urllib.error.HTTPError):
+        updater.check_dev()
+
+
+def test_check_for_update_dispatches_by_channel(monkeypatch):
+    seen_urls: list[str] = []
+    body = json.dumps({"tag_name": "v0.0.1", "assets": []}).encode("utf-8")
+
+    def capture(req, *a, **k):
+        seen_urls.append(req.full_url)
+        resp = mock.MagicMock()
+        resp.read.return_value = body
+        resp.__enter__.return_value = resp
+        resp.__exit__.return_value = False
+        return resp
+
+    monkeypatch.setattr(updater.urllib.request, "urlopen", capture)
+    updater.check_for_update("dev")
+    updater.check_for_update("stable")
+    updater.check_for_update("weird")  # junk falls back to stable
+    assert seen_urls == [updater._API_DEV, updater._API_LATEST, updater._API_LATEST]
+
+
+def test_check_threads_channel_through(qapp, monkeypatch):
+    monkeypatch.setattr(updater.urllib.request, "urlopen", _fake_urlopen(_dev_payload()))
+    monkeypatch.setattr(updater, "build_info", lambda: {})
+    up = updater.Updater()
+    seen: dict[str, object] = {}
+    up.available.connect(lambda info: seen.update(channel=info.channel))
+    up._check(manual=True, channel="dev")
+    assert seen == {"channel": "dev"}

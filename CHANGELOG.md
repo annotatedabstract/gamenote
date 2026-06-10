@@ -7,6 +7,11 @@ versioning.
 ## [Unreleased]
 
 ### Added
+- Opt-in development update channel (Settings -> Updates -> Channel): CI
+  publishes an automated build of every change that passes the tests to a
+  rolling `dev` pre-release, and the in-app updater can install straight from
+  it. The default remains stable releases, which are unaffected; switching back
+  is a one-time reinstall of the latest stable installer from the releases page.
 - Notes now record which video file they belong to: when a profile stamps
   recording positions from OBS ("Stamp recording position from an OBS file")
   and writes session headers, a `### Recording file:` sub-header naming the
