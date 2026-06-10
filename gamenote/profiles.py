@@ -241,6 +241,24 @@ class Profile:
             return ""
         return format_offset(seconds)
 
+    def recording_file_name(self) -> str:
+        """Base name of the current OBS recording file (sidecar ``file_path``),
+        for the ``### Recording file:`` sub-header, or ``""`` when: the clip
+        option is off, the sidecar is missing/unreadable, recording is not
+        active, or the sidecar has no file path. Guards mirror
+        :meth:`clip_offset` so a note with no {clip} stamp never introduces a
+        file sub-header."""
+        if not (self.clip_from_file and self.clip_file):
+            return ""
+        data = _read_sidecar(self.clip_file)
+        if not data or data.get("recording") is False:
+            return ""
+        file_path = str(data.get("file_path", "") or "").strip()
+        if not file_path:
+            return ""
+        # PureWindowsPath handles OBS paths with either separator on any host OS.
+        return PureWindowsPath(file_path).name.strip()
+
 
 def profiles_from_config(cfg: dict[str, Any]) -> list[Profile]:
     return [Profile.from_dict(d) for d in cfg.get("profiles", [])]

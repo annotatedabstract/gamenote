@@ -6,6 +6,14 @@ versioning.
 
 ## [Unreleased]
 
+### Added
+- Notes now record which video file they belong to: when a profile stamps
+  recording positions from OBS ("Stamp recording position from an OBS file")
+  and writes session headers, a `### Recording file:` sub-header naming the
+  current recording file is written under the `## Recording session:` header
+  whenever the file changes — so `{clip}` offsets stay attributable when OBS
+  automatic file splitting starts a new file mid-session.
+
 ### Fixed
 - A manual "Check for updates" while offline now reports that the check could
   not be completed, instead of incorrectly saying you are on the latest version.

@@ -60,8 +60,10 @@ Examples (with the default root):
   read recording info from a `gamenote-obs.json` sidecar — the session header
   carries the recording's start time, and the `{clip}` prefix token stamps how
   far into the recording each note is (and stays correct across OBS file splits).
-  The older plain-text `.current_session` / `.current_game` files still work. See
-  `integrations/obs/` for setup.
+  With session headers on, a `### Recording file:` sub-header also names the
+  recording file each `{clip}` offset refers to, so notes stay attributable when
+  OBS splits the recording mid-session. The older plain-text `.current_session` /
+  `.current_game` files still work. See `integrations/obs/` for setup.
 
 ## Config
 

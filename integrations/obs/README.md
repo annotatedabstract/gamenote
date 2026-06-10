@@ -3,7 +3,9 @@
 gamenote works fine on its own. If you record with OBS, this small script lets
 gamenote enrich notes with recording info: the recording's start time (for the
 `## Recording session:` header) and **how far into the current recording each
-note is** (the `{clip}` prefix token, e.g. `[06:12]`).
+note is** (the `{clip}` prefix token, e.g. `[06:12]`). The `file_path` field
+also feeds a `### Recording file:` sub-header in the notes, naming the file
+each `{clip}` offset refers to — useful with OBS automatic file splitting.
 
 ## What it does
 
@@ -46,9 +48,12 @@ session header still works, but `{clip}` won't reset across splits.
    - **Game as context (optional):** Settings → Context → "Read context from a
      file", pointed at the same `<folder>\gamenote-obs.json`.
 3. Start recording in OBS. Notes filed by that profile now carry the session
-   header and/or a `[mm:ss]` recording position. When you're not recording (or
-   the file is missing), gamenote falls back gracefully: the header uses the
-   date and `{clip}` is omitted (its empty `[]` is tidied away).
+   header and/or a `[mm:ss]` recording position, plus a `### Recording file:`
+   sub-header naming the current recording file (written when the file changes,
+   e.g. on an OBS split). When you're not recording (or the file is missing),
+   gamenote falls back gracefully: the header uses the date, `{clip}` is omitted
+   (its empty `[]` is tidied away), and the sub-header is skipped — likewise
+   when OBS hasn't reported the file path yet (it appears at the next split).
 
 ## Backward compatibility
 

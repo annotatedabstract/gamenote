@@ -130,7 +130,9 @@ class ProfileEditor(QWidget):
         self.clip_hint = QLabel(
             "Reads gamenote-obs.json (see integrations/obs). Put "
             '{clip} in the line prefix, e.g. "[{clip}] ". Omitted '
-            "when no recording is active."
+            "when no recording is active. With session headers on, notes also "
+            'get a "### Recording file:" sub-header naming the current '
+            "recording file, so offsets stay attributable across OBS splits."
         )
         self.clip_hint.setWordWrap(True)
         self.clip_hint.setStyleSheet("color: #888;")

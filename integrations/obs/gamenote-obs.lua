@@ -13,6 +13,9 @@
 --   * file_start    -> the {clip} prefix token, i.e. how far into the current
 --                      recording the note is
 --                      (profile: "Stamp recording position from an OBS file")
+--   * file_path     -> the `### Recording file:` sub-header naming the file
+--                      each {clip} offset refers to (same profile option,
+--                      with session headers on)
 --   * game          -> the context (Settings > Context > "Read context from a
 --                      file"), if you point context at this same file
 --

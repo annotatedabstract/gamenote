@@ -153,6 +153,40 @@ def test_clip_offset_negative_is_omitted(tmp_path):
     assert p.clip_offset(before) == ""
 
 
+def test_recording_file_name_from_sidecar(tmp_path):
+    p = Profile("e", "E", "f1", "d", "x.md", clip_from_file=True)
+    for path in ("N:\\Recordings\\dE_2.mkv", "N:/Recordings/dE_2.mkv", "dE_2.mkv"):
+        f = _obs_sidecar(tmp_path, file_path=path, recording=True)
+        p.clip_file = str(f)
+        assert p.recording_file_name() == "dE_2.mkv"
+
+
+def test_recording_file_name_omitted_when_not_recording(tmp_path):
+    f = _obs_sidecar(tmp_path, file_path="N:\\Recordings\\dE_2.mkv", recording=False)
+    p = Profile("e", "E", "f1", "d", "x.md", clip_from_file=True, clip_file=str(f))
+    assert p.recording_file_name() == ""
+
+
+def test_recording_file_name_omitted_when_disabled_missing_or_blank(tmp_path):
+    f = _obs_sidecar(tmp_path, file_path="N:\\Recordings\\dE_2.mkv", recording=True)
+    disabled = Profile("e", "E", "f1", "d", "x.md", clip_from_file=False, clip_file=str(f))
+    assert disabled.recording_file_name() == ""
+    missing = Profile(
+        "e", "E", "f1", "d", "x.md", clip_from_file=True, clip_file=str(tmp_path / "missing.json")
+    )
+    assert missing.recording_file_name() == ""
+    no_path = _obs_sidecar(tmp_path, file_start="2026-06-08_14-16-55", recording=True)
+    blank = Profile("e", "E", "f1", "d", "x.md", clip_from_file=True, clip_file=str(no_path))
+    assert blank.recording_file_name() == ""
+
+
+def test_recording_file_name_legacy_plain_text_sidecar(tmp_path):
+    f = tmp_path / ".current_session"
+    f.write_text("2026-05-31_14-02-10", encoding="utf-8")
+    p = Profile("e", "E", "f1", "d", "x.md", clip_from_file=True, clip_file=str(f))
+    assert p.recording_file_name() == ""
+
+
 def test_render_line_with_clip_token(tmp_path):
     f = _obs_sidecar(tmp_path, file_start="2026-06-08_14-16-55", recording=True)
     p = Profile(
