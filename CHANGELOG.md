@@ -4,7 +4,7 @@ All notable changes to gamenote are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/), and the project uses semantic
 versioning.
 
-## [Unreleased]
+## [1.4.0] - 2026-06-10
 
 ### Added
 - Opt-in development update channel (Settings -> Updates -> Channel): CI

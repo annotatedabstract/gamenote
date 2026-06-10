@@ -10,7 +10,7 @@
 #define MyAppName "gamenote"
 ; CI overrides this for dev-channel builds: ISCC /DMyAppVersion=1.3.0-dev.<sha>
 #ifndef MyAppVersion
-#define MyAppVersion "1.3.0"
+#define MyAppVersion "1.4.0"
 #endif
 #define MyAppPublisher "AnnotatedAbstract"
 #define MyAppURL "https://github.com/annotatedabstract/gamenote"
