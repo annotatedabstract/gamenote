@@ -36,16 +36,20 @@ session header still works, but `{clip}` won't reset across splits.
 
 1. **OBS:** Tools → Scripts → add `gamenote-obs.lua`. Set "Folder for
    gamenote-obs.json" to a folder gamenote can read (e.g. `N:\Recordings`).
-2. **gamenote:** open Settings → Profiles, pick a profile, tick **"Stamp
-   recording position from an OBS file"**, and set "Recording file" to
+2. **gamenote:** open Settings → Profiles, pick a profile, tick **"Read OBS
+   recording info from a file"**, and set "OBS file" to
    `<folder>\gamenote-obs.json`. That one option drives everything:
    - With **"Write session headers"** on, the `## Recording session:` header
      carries the recording's start time, and a `### Recording file:` sub-header
      names the current recording file.
    - Put `{clip}` in the **Line prefix** (e.g. `[{clip}] `) to stamp each note's
      position in the recording.
-   - **Game as context (optional):** Settings → Context → "Read context from a
-     file", pointed at the same `<folder>\gamenote-obs.json`.
+   - **Game as context (optional):** tick **"Also read {context} (the game)
+     from this file"** to make this profile's `{context}` follow the OBS scene
+     name, overriding the global context (the tray's "Set context" keeps
+     driving the other profiles). To have *every* profile follow OBS instead,
+     use the global option: Settings → Context → "Read context from a file",
+     pointed at the same `<folder>\gamenote-obs.json`.
 3. Start recording in OBS. Notes filed by that profile now carry the session
    header with the recording's start time, a `[mm:ss]` recording position (if
    `{clip}` is in the prefix), and a `### Recording file:` sub-header naming
@@ -60,8 +64,9 @@ session header still works, but `{clip}` won't reset across splits.
 Versions before 1.4.0 had a separate per-profile "Session file" option that
 could read a plain-text `.current_session` file. That option is gone: the
 session header now comes from this script's `gamenote-obs.json` automatically
-whenever "Stamp recording position from an OBS file" is on. If you used the old
-option, just point "Recording file" at `<folder>\gamenote-obs.json`.
+whenever "Read OBS recording info from a file" (previously called "Stamp
+recording position from an OBS file") is on. If you used the old option,
+just point "OBS file" at `<folder>\gamenote-obs.json`.
 
 Context-from-file is unchanged and still accepts a plain-text file (e.g. a
 legacy `.current_game`) as well as this JSON.

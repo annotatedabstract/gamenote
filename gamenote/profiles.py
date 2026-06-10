@@ -117,6 +117,9 @@ class Profile:
     # from the recording's start time.
     clip_from_file: bool = False
     clip_file: str = ""
+    # Also source {context} (the sidecar's "game") from that same file,
+    # overriding the global context for this profile.
+    context_from_obs: bool = False
     # Play the subtle beep when this profile's hotkey fires. On by default.
     hotkey_beep: bool = True
     # "vad" = auto-stop on trailing silence; "toggle" = press to start, press
@@ -135,6 +138,7 @@ class Profile:
             use_session_headers=bool(d.get("use_session_headers", True)),
             clip_from_file=bool(d.get("clip_from_file", False)),
             clip_file=str(d.get("clip_file", "")),
+            context_from_obs=bool(d.get("context_from_obs", False)),
             hotkey_beep=bool(d.get("hotkey_beep", True)),
             capture_mode="toggle" if str(d.get("capture_mode", "vad")) == "toggle" else "vad",
         )
@@ -150,6 +154,7 @@ class Profile:
             "use_session_headers": self.use_session_headers,
             "clip_from_file": self.clip_from_file,
             "clip_file": self.clip_file,
+            "context_from_obs": self.context_from_obs,
             "hotkey_beep": self.hotkey_beep,
             "capture_mode": self.capture_mode,
         }
@@ -246,6 +251,18 @@ class Profile:
             return ""
         # PureWindowsPath handles OBS paths with either separator on any host OS.
         return PureWindowsPath(file_path).name.strip()
+
+    def effective_context(self, global_context_cfg: dict[str, Any]) -> str:
+        """The {context} value for this profile: the global context, unless the
+        profile reads OBS info and opts into sourcing the context (the game)
+        from that same file. The override fully replaces the global context --
+        an absent sidecar or empty game yields "", like the global file source.
+        Unlike the other OBS-derived decorations it does not go quiet when
+        recording stops: the last game is still the best guess at what is
+        being played."""
+        if self.clip_from_file and self.clip_file and self.context_from_obs:
+            return read_context({"source": "file", "file_path": self.clip_file})
+        return read_context(global_context_cfg)
 
 
 def profiles_from_config(cfg: dict[str, Any]) -> list[Profile]:

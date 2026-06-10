@@ -110,7 +110,7 @@ class Controller(QObject):
             if not text:
                 self.overlay_message.emit("(no speech)", _C_MUTED, False, "none")
                 return
-            context = gn_profiles.read_context(self._global["context"])
+            context = profile.effective_context(self._global["context"])
             self.last_note_path = gn_notes.append_note(profile, context, text)
             preview = text if len(text) <= 48 else text[:45] + "..."
             self.overlay_message.emit("saved: " + preview, _C_SAVED, False, "check")

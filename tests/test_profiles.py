@@ -32,6 +32,7 @@ def test_to_from_dict_roundtrip():
     assert Profile.from_dict(d).to_dict() == d
     assert "hotkey_beep" in d
     assert "clip_from_file" in d and "clip_file" in d
+    assert d["context_from_obs"] is False  # default off
     assert d["capture_mode"] == "vad"  # default
     assert Profile.from_dict({"capture_mode": "toggle"}).capture_mode == "toggle"
     assert Profile.from_dict({"capture_mode": "weird"}).capture_mode == "vad"  # invalid -> vad
@@ -283,3 +284,64 @@ def test_render_line_accepts_injected_clip():
 def test_read_context_from_json_sidecar(tmp_path):
     f = _obs_sidecar(tmp_path, game="Hollow Knight", session_start="2026-05-31_14-02-10")
     assert read_context({"source": "file", "file_path": str(f)}) == "Hollow Knight"
+
+
+# --- per-profile context from the OBS sidecar ------------------------------
+
+_GLOBAL_CTX = {"source": "manual", "value": "Tray Game", "file_path": ""}
+
+
+def _obs_ctx_profile(clip_file, **overrides):
+    kwargs = {"clip_from_file": True, "clip_file": str(clip_file), "context_from_obs": True}
+    kwargs.update(overrides)
+    return Profile("e", "E", "f1", "d", "x.md", **kwargs)
+
+
+def test_effective_context_defaults_to_global(tmp_path):
+    f = _obs_sidecar(tmp_path, game="Hollow Knight")
+    # no OBS wiring at all
+    plain = Profile("e", "E", "f1", "d", "x.md")
+    assert plain.effective_context(_GLOBAL_CTX) == "Tray Game"
+    # OBS file wired up but the context opt-in unchecked
+    no_opt_in = _obs_ctx_profile(f, context_from_obs=False)
+    assert no_opt_in.effective_context(_GLOBAL_CTX) == "Tray Game"
+    # opt-in checked but the OBS option itself off -> inert
+    obs_off = _obs_ctx_profile(f, clip_from_file=False)
+    assert obs_off.effective_context(_GLOBAL_CTX) == "Tray Game"
+
+
+def test_effective_context_reads_game_from_sidecar(tmp_path):
+    f = _obs_sidecar(tmp_path, game="  Hollow Knight ", recording=True)
+    assert _obs_ctx_profile(f).effective_context(_GLOBAL_CTX) == "Hollow Knight"
+
+
+def test_effective_context_ignores_recording_flag(tmp_path):
+    # Unlike {clip} and the headers, context does not go quiet when recording
+    # stops: the sidecar's last game is still the best guess at what is played.
+    f = _obs_sidecar(tmp_path, game="Hollow Knight", recording=False)
+    assert _obs_ctx_profile(f).effective_context(_GLOBAL_CTX) == "Hollow Knight"
+
+
+def test_effective_context_override_is_strict(tmp_path):
+    # A missing sidecar or one without a game yields "" (-> _Unsorted), not the
+    # global context: the override fully replaces it, mirroring the global file
+    # source's own semantics.
+    missing = _obs_ctx_profile(tmp_path / "missing.json")
+    assert missing.effective_context(_GLOBAL_CTX) == ""
+    no_game = _obs_sidecar(tmp_path, session_start="2026-05-31_14-02-10", recording=True)
+    assert _obs_ctx_profile(no_game).effective_context(_GLOBAL_CTX) == ""
+
+
+def test_effective_context_plain_text_file(tmp_path):
+    # A legacy plain-text .current_game works for the per-profile source too.
+    f = tmp_path / ".current_game"
+    f.write_text("Cyberpunk\n", encoding="utf-8")
+    assert _obs_ctx_profile(f).effective_context(_GLOBAL_CTX) == "Cyberpunk"
+
+
+def test_effective_context_global_file_source(tmp_path):
+    # Without the override, a file-sourced global context flows through.
+    f = _obs_sidecar(tmp_path, game="Hollow Knight")
+    plain = Profile("e", "E", "f1", "d", "x.md")
+    cfg = {"source": "file", "value": "ignored", "file_path": str(f)}
+    assert plain.effective_context(cfg) == "Hollow Knight"

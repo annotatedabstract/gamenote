@@ -7,16 +7,17 @@
 --   file_path     the current recording file
 --   recording     true while recording, false once it stops
 --
--- gamenote reads from it via the profile's "Stamp recording position from an
--- OBS file" option (point its "Recording file" at <folder>\gamenote-obs.json):
+-- gamenote reads from it via the profile's "Read OBS recording info from a
+-- file" option (point its "OBS file" at <folder>\gamenote-obs.json):
 --   * session_start -> the `## Recording session:` header value
 --                      (with "Write session headers" on)
 --   * file_start    -> the {clip} prefix token, i.e. how far into the current
 --                      recording the note is
 --   * file_path     -> the `### Recording file:` sub-header naming the file
 --                      each {clip} offset refers to (with session headers on)
---   * game          -> the context (Settings > Context > "Read context from a
---                      file"), if you point context at this same file
+--   * game          -> the {context} value, per profile ("Also read {context}
+--                      (the game) from this file") or globally (Settings >
+--                      Context > "Read context from a file" pointed here)
 --
 -- file_start is re-stamped on OBS's "file_changed" signal, so the {clip} offset
 -- stays correct even when OBS automatic file splitting starts a new file
@@ -148,9 +149,9 @@ end
 function script_description()
   return [[Writes gamenote-obs.json (game, session_start, file_start, file_path,
 recording) into the chosen folder while recording, for gamenote's optional
-session-header and {clip} recording-position features. file_start updates on each
-automatic file split (OBS 28+). Point the gamenote profile's "Recording file"
-(and optionally the context file) at <folder>\gamenote-obs.json.]]
+session-header, {clip} recording-position, and game-as-context features.
+file_start updates on each automatic file split (OBS 28+). Point the gamenote
+profile's "OBS file" at <folder>\gamenote-obs.json.]]
 end
 
 function script_defaults(s)

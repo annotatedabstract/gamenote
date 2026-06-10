@@ -33,6 +33,7 @@
       "use_session_headers": true,
       "clip_from_file": false,
       "clip_file": "",
+      "context_from_obs": false,
       "hotkey_beep": true,
       "capture_mode": "vad"
     },
@@ -46,6 +47,7 @@
       "use_session_headers": false,
       "clip_from_file": false,
       "clip_file": "",
+      "context_from_obs": false,
       "hotkey_beep": true,
       "capture_mode": "vad"
     },
@@ -59,6 +61,7 @@
       "use_session_headers": false,
       "clip_from_file": false,
       "clip_file": "",
+      "context_from_obs": false,
       "hotkey_beep": true,
       "capture_mode": "vad"
     }

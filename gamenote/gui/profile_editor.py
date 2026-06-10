@@ -63,11 +63,13 @@ class _CaptureDialog(QDialog):
 class ProfileEditor(QWidget):
     changed = Signal()
 
-    def __init__(self, context_getter=None) -> None:
+    def __init__(self, context_cfg_getter=None) -> None:
         super().__init__()
         self._profile: Profile | None = None
         self._loading = False
-        self._context_getter = context_getter or (lambda: "")
+        # Returns the global Context settings (config dict shape) for the
+        # resolved-path preview; the profile's own override may supersede it.
+        self._context_cfg = context_cfg_getter or (lambda: {})
 
         self.name = QLineEdit()
         self.hotkey = QLineEdit()
@@ -105,9 +107,10 @@ class ProfileEditor(QWidget):
         self.session_hint.setWordWrap(True)
         self.session_hint.setStyleSheet("color: #888;")
 
-        # Stamp the note's position into the current OBS recording, read from a
-        # gamenote-obs.json sidecar. The value fills the {clip} token in the prefix.
-        self.clip_from_file = QCheckBox("Stamp recording position from an OBS file")
+        # Read OBS recording info from a gamenote-obs.json sidecar: the {clip}
+        # prefix token, the session header value, the recording-file sub-header,
+        # and optionally {context} (the game).
+        self.clip_from_file = QCheckBox("Read OBS recording info from a file")
         self.clip_file = QLineEdit()
         cf_browse = QPushButton("Browse...")
         cf_browse.clicked.connect(self._browse_clip_file)
@@ -117,12 +120,15 @@ class ProfileEditor(QWidget):
         cf_row.addWidget(cf_browse)
         self.clip_file_widget = QWidget()
         self.clip_file_widget.setLayout(cf_row)
+        self.context_from_obs = QCheckBox("Also read {context} (the game) from this file")
         self.clip_hint = QLabel(
             "Reads gamenote-obs.json (see integrations/obs). Put "
             '{clip} in the line prefix, e.g. "[{clip}] ". Omitted '
             "when no recording is active. With session headers on, notes also "
             'get a "### Recording file:" sub-header naming the current '
-            "recording file, so offsets stay attributable across OBS splits."
+            "recording file, so offsets stay attributable across OBS splits. "
+            "With the context option, this profile's {context} follows the "
+            "file's game (the OBS scene) instead of the global context."
         )
         self.clip_hint.setWordWrap(True)
         self.clip_hint.setStyleSheet("color: #888;")
@@ -145,7 +151,8 @@ class ProfileEditor(QWidget):
         form.addRow("", self.use_session_headers)
         form.addRow("", self.session_hint)
         form.addRow("", self.clip_from_file)
-        form.addRow("Recording file", self.clip_file_widget)
+        form.addRow("OBS file", self.clip_file_widget)
+        form.addRow("", self.context_from_obs)
         form.addRow("", self.clip_hint)
         form.addRow("", self.hotkey_beep)
         form.addRow("Resolved path", self.preview)
@@ -171,6 +178,7 @@ class ProfileEditor(QWidget):
         self.use_session_headers.toggled.connect(self._on_edit)
         self.clip_from_file.toggled.connect(self._on_edit)
         self.clip_file.textChanged.connect(self._on_edit)
+        self.context_from_obs.toggled.connect(self._on_edit)
         self.hotkey_beep.toggled.connect(self._on_edit)
         self.clip_from_file.toggled.connect(self._sync_clip_enable)
 
@@ -192,6 +200,7 @@ class ProfileEditor(QWidget):
             self.use_session_headers.setChecked(profile.use_session_headers)
             self.clip_from_file.setChecked(profile.clip_from_file)
             self.clip_file.setText(profile.clip_file)
+            self.context_from_obs.setChecked(profile.context_from_obs)
             self.hotkey_beep.setChecked(profile.hotkey_beep)
         else:
             for w in (
@@ -222,6 +231,7 @@ class ProfileEditor(QWidget):
         p.use_session_headers = self.use_session_headers.isChecked()
         p.clip_from_file = self.clip_from_file.isChecked()
         p.clip_file = self.clip_file.text().strip()
+        p.context_from_obs = self.context_from_obs.isChecked()
         p.hotkey_beep = self.hotkey_beep.isChecked()
         self._update_preview()
         self.changed.emit()
@@ -229,6 +239,7 @@ class ProfileEditor(QWidget):
     def _sync_clip_enable(self, *_args) -> None:
         on = self.clip_from_file.isChecked()
         self.clip_file_widget.setEnabled(on)
+        self.context_from_obs.setEnabled(on)
         self.clip_hint.setEnabled(on)
 
     def _update_preview(self) -> None:
@@ -236,7 +247,7 @@ class ProfileEditor(QWidget):
             self.preview.setText("-")
             return
         try:
-            context = self._context_getter()
+            context = self._profile.effective_context(self._context_cfg())
             path = self._profile.resolve_path(context, datetime.now())
             self.preview.setText(str(path))
         except Exception as e:
@@ -296,6 +307,7 @@ class ProfileEditor(QWidget):
         p.use_session_headers = src.use_session_headers
         p.clip_from_file = src.clip_from_file
         p.clip_file = src.clip_file
+        p.context_from_obs = src.context_from_obs
         p.hotkey_beep = src.hotkey_beep
         # p.id is the profile's identity and is left unchanged.
         self.set_profile(p)

@@ -116,6 +116,14 @@ class SettingsWindow(QDialog):
         self.context_from_file = QCheckBox("Read context from a file instead")
         self.context_file_path = QLineEdit()
         self.context_from_file.toggled.connect(lambda on: self.context_file_path.setEnabled(on))
+        # Only write the Context group back on apply if it was edited here:
+        # otherwise a context set from the tray while this window is open would
+        # be stomped by the stale values still sitting in these fields.
+        # textEdited/clicked fire on user interaction only, not on populate.
+        self._context_dirty = False
+        self.context_value.textEdited.connect(self._mark_context_dirty)
+        self.context_from_file.clicked.connect(self._mark_context_dirty)
+        self.context_file_path.textEdited.connect(self._mark_context_dirty)
 
         self.model_size = QComboBox()
         self.model_size.setEditable(True)
@@ -342,6 +350,7 @@ class SettingsWindow(QDialog):
         ):
             return
         self._populate_global(default_global())
+        self._context_dirty = True  # restoring defaults is a deliberate edit
 
     def _populate_global(self, g: dict) -> None:
         ctx = g.get("context", {})
@@ -384,6 +393,10 @@ class SettingsWindow(QDialog):
 
         self.mic_meter.set_threshold(self.silence_threshold.value())
         self._sync_meter()
+        # The Context group feeds the profile editor's resolved-path preview,
+        # and the profiles tab is built before the initial populate runs.
+        if hasattr(self, "profile_list"):
+            self._on_profile_selected(self.profile_list.currentRow())
 
     def _wav_picker(self, line_edit: QLineEdit) -> QWidget:
         btn = QPushButton("Browse...")
@@ -411,8 +424,25 @@ class SettingsWindow(QDialog):
             self.frame_ms.value(),
         )
 
+    def _mark_context_dirty(self, *_args) -> None:
+        self._context_dirty = True
+
+    def _context_from_widgets(self) -> dict:
+        """The Context group as currently filled in (unsaved edits included),
+        in the config dict shape ``read_context`` takes."""
+        return {
+            "value": self.context_value.text().strip(),
+            "source": "file" if self.context_from_file.isChecked() else "manual",
+            "file_path": self.context_file_path.text().strip(),
+        }
+
     def _gather_global(self) -> dict:
-        source = "file" if self.context_from_file.isChecked() else "manual"
+        if self._context_dirty or not isinstance(self.cfg["global"].get("context"), dict):
+            context = self._context_from_widgets()
+        else:
+            # Untouched: pass the live value through (the tray may have
+            # changed it while this window was open).
+            context = self.cfg["global"]["context"]
         return {
             "model_size": self.model_size.currentText().strip(),
             "device": self.device.currentData(),
@@ -435,11 +465,7 @@ class SettingsWindow(QDialog):
             "hotkey_beep_file": self.hotkey_beep_file.text().strip(),
             "auto_update": self.auto_update.isChecked(),
             "update_channel": self.update_channel.currentData(),
-            "context": {
-                "value": self.context_value.text().strip(),
-                "source": source,
-                "file_path": self.context_file_path.text().strip(),
-            },
+            "context": context,
             "log_level": self.log_level.currentText(),
         }
 
@@ -464,7 +490,7 @@ class SettingsWindow(QDialog):
         left_widget = QWidget()
         left_widget.setLayout(left)
 
-        self.editor = ProfileEditor(context_getter=self._preview_context)
+        self.editor = ProfileEditor(context_cfg_getter=self._context_from_widgets)
         self.editor.changed.connect(self._on_editor_changed)
 
         layout = QHBoxLayout()
@@ -477,12 +503,6 @@ class SettingsWindow(QDialog):
         if self.working_profiles:
             self.profile_list.setCurrentRow(0)
         return tab
-
-    def _preview_context(self) -> str:
-        # Preview against the value currently typed in the Global tab.
-        if self.context_from_file.isChecked():
-            return ""
-        return self.context_value.text().strip()
 
     def _reload_profile_list(self) -> None:
         row = self.profile_list.currentRow()
@@ -556,6 +576,9 @@ class SettingsWindow(QDialog):
             log.error("Applying settings failed: %s", e)
             QMessageBox.critical(self, "gamenote", f"Could not apply settings:\n{e}")
             return False
+        # An applied edit is in the config now; track only edits made after
+        # this point so a later tray context change survives the next apply.
+        self._context_dirty = False
         return True
 
     def _on_apply_clicked(self) -> None:

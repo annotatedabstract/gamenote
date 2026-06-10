@@ -4,6 +4,31 @@ All notable changes to gamenote are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/), and the project uses semantic
 versioning.
 
+## [Unreleased]
+
+### Added
+- Per-profile game-as-context: a profile that reads OBS recording info can now
+  also source its `{context}` from the same `gamenote-obs.json` ("Also read
+  {context} (the game) from this file"), so e.g. editing notes follow the OBS
+  scene name automatically while the tray's "Set context" keeps driving every
+  other profile. The global context-from-file option is unchanged for setups
+  where everything should follow OBS.
+
+### Changed
+- The per-profile OBS option is relabeled "Read OBS recording info from a file"
+  (was "Stamp recording position from an OBS file") and its path field "OBS
+  file" (was "Recording file"), reflecting that it now drives the `{clip}`
+  stamp, the session header, the recording-file sub-header, and optionally the
+  context. Configs are unaffected.
+- The profile editor's resolved-path preview now resolves `{context}` the same
+  way notes do — including file-sourced and per-profile OBS contexts — instead
+  of only the manually typed global value.
+
+### Fixed
+- Setting a context from the tray while the settings window is open is no
+  longer reverted to the window's stale Context fields on Apply/Save; the
+  Context group is only written back if it was actually edited.
+
 ## [1.4.0] - 2026-06-10
 
 ### Added
@@ -120,7 +145,8 @@ versioning.
   transcription, a focus-safe overlay, and a per-user installer with the
   small.en model bundled (CPU by default).
 
-[Unreleased]: https://github.com/annotatedabstract/gamenote/compare/v1.3.0...HEAD
+[Unreleased]: https://github.com/annotatedabstract/gamenote/compare/v1.4.0...HEAD
+[1.4.0]: https://github.com/annotatedabstract/gamenote/releases/tag/v1.4.0
 [1.3.0]: https://github.com/annotatedabstract/gamenote/releases/tag/v1.3.0
 [1.2.0]: https://github.com/annotatedabstract/gamenote/releases/tag/v1.2.0
 [1.1.0]: https://github.com/annotatedabstract/gamenote/releases/tag/v1.1.0

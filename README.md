@@ -23,7 +23,9 @@ not a requirement. See `integrations/obs/` if you record with OBS.
 - **Context.** The app owns a context string (for example the game you are
   recording). Path templates can use it. Set it from the tray ("Set context") or
   in Settings. Default is empty; an empty context falls back to `_Unsorted` so
-  notes always land somewhere.
+  notes always land somewhere. A profile wired to OBS can instead follow the
+  OBS scene name automatically (see the OBS bullet below); the tray context
+  keeps driving every other profile.
 - **Global vs per-profile.** The model, input device, and all silence/timing
   settings are global. Destination and formatting are per profile.
 
@@ -58,12 +60,15 @@ Examples (with the default root):
   append.
 - Optional (OBS): with the small script in `integrations/obs/`, a profile can
   read recording info from a `gamenote-obs.json` sidecar via a single option
-  ("Stamp recording position from an OBS file") — the session header carries the
+  ("Read OBS recording info from a file") — the session header carries the
   recording's start time, and the `{clip}` prefix token stamps how far into the
   recording each note is (and stays correct across OBS file splits). With
   session headers on, a `### Recording file:` sub-header also names the
   recording file each `{clip}` offset refers to, so notes stay attributable when
-  OBS splits the recording mid-session. See `integrations/obs/` for setup.
+  OBS splits the recording mid-session. The profile can also source its
+  `{context}` from the same file ("Also read {context} (the game) from this
+  file"), overriding the global context with the OBS scene name. See
+  `integrations/obs/` for setup.
 
 ## Config
 
