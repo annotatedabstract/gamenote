@@ -30,11 +30,28 @@ def test_to_from_dict_roundtrip():
     )
     d = p.to_dict()
     assert Profile.from_dict(d).to_dict() == d
-    assert "session_from_file" in d and "session_file" in d and "hotkey_beep" in d
+    assert "hotkey_beep" in d
     assert "clip_from_file" in d and "clip_file" in d
     assert d["capture_mode"] == "vad"  # default
     assert Profile.from_dict({"capture_mode": "toggle"}).capture_mode == "toggle"
     assert Profile.from_dict({"capture_mode": "weird"}).capture_mode == "vad"  # invalid -> vad
+
+
+def test_from_dict_ignores_removed_legacy_keys():
+    # Configs from before 1.4.0 carry the removed session-file keys; they must
+    # load fine and the keys must not survive a round-trip.
+    d = {
+        "id": "e",
+        "name": "E",
+        "hotkey": "f1",
+        "dest_root": "d",
+        "path_template": "x.md",
+        "session_from_file": True,
+        "session_file": r"N:\Recordings\.current_session",
+    }
+    p = Profile.from_dict(d)
+    out = p.to_dict()
+    assert "session_from_file" not in out and "session_file" not in out
 
 
 def test_resolve_path_tokens_and_sanitization():
@@ -88,19 +105,39 @@ def test_validate_profiles_flags_dupes_and_empties():
     assert any("destination" in e for e in errors)
 
 
-def test_session_header_from_file(tmp_path):
-    f = tmp_path / ".current_session"
-    f.write_text("2026-05-31_14-02-10", encoding="utf-8")
-    p = Profile("e", "E", "f1", "d", "x.md", session_from_file=True, session_file=str(f))
+def test_session_header_from_clip_sidecar(tmp_path):
+    f = _obs_sidecar(
+        tmp_path,
+        session_start="2026-05-31_14-02-10",
+        file_start="2026-05-31_14-20-00",
+        recording=True,
+    )
+    p = Profile("e", "E", "f1", "d", "x.md", clip_from_file=True, clip_file=str(f))
     assert p.session_header_value() == "2026-05-31_14-02-10"
 
 
 def test_session_header_falls_back_to_date(tmp_path):
     now = datetime.datetime(2026, 6, 7, 0, 0, 0)
-    p = Profile(
-        "e", "E", "f1", "d", "x.md", session_from_file=True, session_file=str(tmp_path / "missing")
+    # clip option off
+    off = Profile("e", "E", "f1", "d", "x.md")
+    assert off.session_header_value(now) == "2026-06-07"
+    # sidecar missing
+    missing = Profile(
+        "e", "E", "f1", "d", "x.md", clip_from_file=True, clip_file=str(tmp_path / "missing")
     )
+    assert missing.session_header_value(now) == "2026-06-07"
+    # sidecar without a session_start
+    no_start = _obs_sidecar(tmp_path, file_start="2026-06-07_10-00-00", recording=True)
+    p = Profile("e", "E", "f1", "d", "x.md", clip_from_file=True, clip_file=str(no_start))
     assert p.session_header_value(now) == "2026-06-07"
+
+
+def test_session_header_date_when_not_recording(tmp_path):
+    # A stale sidecar from a finished recording must not keep stamping its old
+    # session_start; once recording is false the header reverts to the date.
+    f = _obs_sidecar(tmp_path, session_start="2026-05-31_14-02-10", recording=False)
+    p = Profile("e", "E", "f1", "d", "x.md", clip_from_file=True, clip_file=str(f))
+    assert p.session_header_value(datetime.datetime(2026, 6, 7, 0, 0, 0)) == "2026-06-07"
 
 
 def test_read_context_manual_and_file(tmp_path):
@@ -180,8 +217,9 @@ def test_recording_file_name_omitted_when_disabled_missing_or_blank(tmp_path):
     assert blank.recording_file_name() == ""
 
 
-def test_recording_file_name_legacy_plain_text_sidecar(tmp_path):
-    f = tmp_path / ".current_session"
+def test_recording_file_name_non_json_file(tmp_path):
+    # A clip_file pointing at something that isn't the JSON sidecar is ignored.
+    f = tmp_path / "notes.txt"
     f.write_text("2026-05-31_14-02-10", encoding="utf-8")
     p = Profile("e", "E", "f1", "d", "x.md", clip_from_file=True, clip_file=str(f))
     assert p.recording_file_name() == ""
@@ -240,17 +278,6 @@ def test_render_line_accepts_injected_clip():
     p = Profile("e", "E", "f1", "d", "x.md", LineFormat("%H:%M:%S", "[{clip}] "))
     now = datetime.datetime(2026, 6, 8, 1, 2, 3)
     assert p.render_line("x", now, clip="1:03:45") == "- [01:02:03] [1:03:45] x\n"
-
-
-def test_session_header_from_json_sidecar(tmp_path):
-    f = _obs_sidecar(
-        tmp_path,
-        session_start="2026-05-31_14-02-10",
-        file_start="2026-05-31_14-20-00",
-        recording=True,
-    )
-    p = Profile("e", "E", "f1", "d", "x.md", session_from_file=True, session_file=str(f))
-    assert p.session_header_value() == "2026-05-31_14-02-10"
 
 
 def test_read_context_from_json_sidecar(tmp_path):

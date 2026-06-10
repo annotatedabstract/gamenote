@@ -57,9 +57,12 @@ def test_flat_profile_has_no_headers(tmp_path):
     assert "[bug] crash on load" in text
 
 
-def test_session_header_from_file_value(tmp_path):
-    sess = tmp_path / ".current_session"
-    sess.write_text("2026-05-31_14-02-10", encoding="utf-8")
+def test_session_header_from_obs_sidecar(tmp_path):
+    sidecar = tmp_path / "gamenote-obs.json"
+    sidecar.write_text(
+        json.dumps({"session_start": "2026-05-31_14-02-10", "recording": True}),
+        encoding="utf-8",
+    )
     p = Profile(
         "e",
         "E",
@@ -68,8 +71,8 @@ def test_session_header_from_file_value(tmp_path):
         "{context}_notes.md",
         LineFormat("%Y-%m-%d %H:%M:%S", ""),
         use_session_headers=True,
-        session_from_file=True,
-        session_file=str(sess),
+        clip_from_file=True,
+        clip_file=str(sidecar),
     )
     path = notes.append_note(p, "Octopath", "x", datetime.datetime(2026, 6, 7, 9, 0, 0))
     assert "## Recording session: 2026-05-31_14-02-10" in path.read_text(encoding="utf-8")

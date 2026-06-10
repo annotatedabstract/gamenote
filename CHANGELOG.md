@@ -19,6 +19,24 @@ versioning.
   whenever the file changes — so `{clip}` offsets stay attributable when OBS
   automatic file splitting starts a new file mid-session.
 
+### Changed
+- The OBS-sourced session header no longer needs its own option: whenever "Stamp
+  recording position from an OBS file" is on (and session headers are enabled),
+  the `## Recording session:` header automatically carries the recording's start
+  time from `gamenote-obs.json`. It also now falls back to the date once
+  recording stops, matching the documented behavior and the other OBS-derived
+  decorations.
+
+### Removed
+- The legacy per-profile "Read session value from a file" option
+  (`session_from_file` / `session_file`) and plain-text `.current_session`
+  support. The `gamenote-obs.json` sidecar written by
+  `integrations/obs/gamenote-obs.lua` is the one OBS integration going forward;
+  if you used the old option, point the profile's "Recording file" at the JSON
+  instead. Old configs load fine (the obsolete keys are ignored and dropped on
+  the next save). Plain-text context files (e.g. a legacy `.current_game`) still
+  work for the context-from-file setting.
+
 ### Fixed
 - A manual "Check for updates" while offline now reports that the check could
   not be completed, instead of incorrectly saying you are on the latest version.

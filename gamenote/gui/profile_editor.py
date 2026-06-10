@@ -98,21 +98,11 @@ class ProfileEditor(QWidget):
         self.timestamp_format = QLineEdit()
         self.prefix = QLineEdit()
         self.use_session_headers = QCheckBox("Write session headers")
-
-        # Legacy: source the session header value from a .current_session file.
-        self.session_from_file = QCheckBox(
-            "Read session value from a file (legacy OBS .current_session)"
+        self.session_hint = QLabel(
+            "With the OBS option below, the header carries the recording's "
+            "start time; otherwise the date."
         )
-        self.session_file = QLineEdit()
-        sf_browse = QPushButton("Browse...")
-        sf_browse.clicked.connect(self._browse_session_file)
-        sf_row = QHBoxLayout()
-        sf_row.setContentsMargins(0, 0, 0, 0)
-        sf_row.addWidget(self.session_file, 1)
-        sf_row.addWidget(sf_browse)
-        self.session_file_widget = QWidget()
-        self.session_file_widget.setLayout(sf_row)
-        self.session_hint = QLabel("Empty or missing file falls back to the date.")
+        self.session_hint.setWordWrap(True)
         self.session_hint.setStyleSheet("color: #888;")
 
         # Stamp the note's position into the current OBS recording, read from a
@@ -153,8 +143,6 @@ class ProfileEditor(QWidget):
         form.addRow("Timestamp format", self.timestamp_format)
         form.addRow("Line prefix", self.prefix)
         form.addRow("", self.use_session_headers)
-        form.addRow("", self.session_from_file)
-        form.addRow("Session file", self.session_file_widget)
         form.addRow("", self.session_hint)
         form.addRow("", self.clip_from_file)
         form.addRow("Recording file", self.clip_file_widget)
@@ -181,13 +169,9 @@ class ProfileEditor(QWidget):
         self.timestamp_format.textChanged.connect(self._on_edit)
         self.prefix.textChanged.connect(self._on_edit)
         self.use_session_headers.toggled.connect(self._on_edit)
-        self.session_from_file.toggled.connect(self._on_edit)
-        self.session_file.textChanged.connect(self._on_edit)
         self.clip_from_file.toggled.connect(self._on_edit)
         self.clip_file.textChanged.connect(self._on_edit)
         self.hotkey_beep.toggled.connect(self._on_edit)
-        self.use_session_headers.toggled.connect(self._sync_session_enable)
-        self.session_from_file.toggled.connect(self._sync_session_enable)
         self.clip_from_file.toggled.connect(self._sync_clip_enable)
 
         self.setEnabled(False)
@@ -206,8 +190,6 @@ class ProfileEditor(QWidget):
             self.timestamp_format.setText(profile.line_format.timestamp_format)
             self.prefix.setText(profile.line_format.prefix)
             self.use_session_headers.setChecked(profile.use_session_headers)
-            self.session_from_file.setChecked(profile.session_from_file)
-            self.session_file.setText(profile.session_file)
             self.clip_from_file.setChecked(profile.clip_from_file)
             self.clip_file.setText(profile.clip_file)
             self.hotkey_beep.setChecked(profile.hotkey_beep)
@@ -219,12 +201,10 @@ class ProfileEditor(QWidget):
                 self.path_template,
                 self.timestamp_format,
                 self.prefix,
-                self.session_file,
                 self.clip_file,
             ):
                 w.clear()
         self._loading = False
-        self._sync_session_enable()
         self._sync_clip_enable()
         self._update_preview()
 
@@ -240,20 +220,11 @@ class ProfileEditor(QWidget):
         p.line_format.timestamp_format = self.timestamp_format.text()
         p.line_format.prefix = self.prefix.text()
         p.use_session_headers = self.use_session_headers.isChecked()
-        p.session_from_file = self.session_from_file.isChecked()
-        p.session_file = self.session_file.text().strip()
         p.clip_from_file = self.clip_from_file.isChecked()
         p.clip_file = self.clip_file.text().strip()
         p.hotkey_beep = self.hotkey_beep.isChecked()
         self._update_preview()
         self.changed.emit()
-
-    def _sync_session_enable(self, *_args) -> None:
-        headers = self.use_session_headers.isChecked()
-        self.session_from_file.setEnabled(headers)
-        from_file = headers and self.session_from_file.isChecked()
-        self.session_file_widget.setEnabled(from_file)
-        self.session_hint.setEnabled(from_file)
 
     def _sync_clip_enable(self, *_args) -> None:
         on = self.clip_from_file.isChecked()
@@ -283,12 +254,6 @@ class ProfileEditor(QWidget):
         chosen = QFileDialog.getExistingDirectory(self, "Choose destination root", start)
         if chosen:
             self.dest_root.setText(chosen)
-
-    def _browse_session_file(self) -> None:
-        start = self.session_file.text() or ""
-        chosen, _ = QFileDialog.getOpenFileName(self, "Choose .current_session file", start)
-        if chosen:
-            self.session_file.setText(chosen)
 
     def _browse_clip_file(self) -> None:
         start = self.clip_file.text() or ""
@@ -329,8 +294,6 @@ class ProfileEditor(QWidget):
         p.path_template = src.path_template
         p.line_format = src.line_format
         p.use_session_headers = src.use_session_headers
-        p.session_from_file = src.session_from_file
-        p.session_file = src.session_file
         p.clip_from_file = src.clip_from_file
         p.clip_file = src.clip_file
         p.hotkey_beep = src.hotkey_beep

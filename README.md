@@ -57,13 +57,13 @@ Examples (with the default root):
   written when the file is new or the date changed. Disable headers for a flat
   append.
 - Optional (OBS): with the small script in `integrations/obs/`, a profile can
-  read recording info from a `gamenote-obs.json` sidecar — the session header
-  carries the recording's start time, and the `{clip}` prefix token stamps how
-  far into the recording each note is (and stays correct across OBS file splits).
-  With session headers on, a `### Recording file:` sub-header also names the
+  read recording info from a `gamenote-obs.json` sidecar via a single option
+  ("Stamp recording position from an OBS file") — the session header carries the
+  recording's start time, and the `{clip}` prefix token stamps how far into the
+  recording each note is (and stays correct across OBS file splits). With
+  session headers on, a `### Recording file:` sub-header also names the
   recording file each `{clip}` offset refers to, so notes stay attributable when
-  OBS splits the recording mid-session. The older plain-text `.current_session` /
-  `.current_game` files still work. See `integrations/obs/` for setup.
+  OBS splits the recording mid-session. See `integrations/obs/` for setup.
 
 ## Config
 

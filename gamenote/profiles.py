@@ -68,8 +68,8 @@ def _parse_sidecar_time(value: str) -> datetime | None:
 
 def _read_sidecar(path: str) -> dict[str, Any] | None:
     """Parse a ``gamenote-obs.json`` sidecar into a dict, or None if the file is
-    missing, unreadable, empty, or not a JSON object (e.g. a legacy plain-text
-    ``.current_session`` / ``.current_game`` value). Callers fall back accordingly."""
+    missing, unreadable, empty, or not a JSON object (e.g. a plain-text value).
+    Callers fall back accordingly."""
     if not path:
         return None
     try:
@@ -111,13 +111,10 @@ class Profile:
     path_template: str
     line_format: LineFormat = field(default_factory=LineFormat)
     use_session_headers: bool = True
-    # Legacy option: source the session-header value from a .current_session file
-    # (written by OBS) instead of the date. Off by default.
-    session_from_file: bool = False
-    session_file: str = ""
-    # Optional: stamp the note with its position into the current OBS recording
-    # segment, read from a gamenote-obs.json sidecar (see integrations/obs). The
-    # value fills the {clip} token in the line prefix; omitted when unavailable.
+    # Optional: read OBS recording info from a gamenote-obs.json sidecar (see
+    # integrations/obs). Fills the {clip} token in the line prefix, names the
+    # current recording file in a sub-header, and sources the session header
+    # from the recording's start time.
     clip_from_file: bool = False
     clip_file: str = ""
     # Play the subtle beep when this profile's hotkey fires. On by default.
@@ -136,8 +133,6 @@ class Profile:
             path_template=str(d.get("path_template", "")),
             line_format=LineFormat.from_dict(d.get("line_format")),
             use_session_headers=bool(d.get("use_session_headers", True)),
-            session_from_file=bool(d.get("session_from_file", False)),
-            session_file=str(d.get("session_file", "")),
             clip_from_file=bool(d.get("clip_from_file", False)),
             clip_file=str(d.get("clip_file", "")),
             hotkey_beep=bool(d.get("hotkey_beep", True)),
@@ -153,8 +148,6 @@ class Profile:
             "path_template": self.path_template,
             "line_format": self.line_format.to_dict(),
             "use_session_headers": self.use_session_headers,
-            "session_from_file": self.session_from_file,
-            "session_file": self.session_file,
             "clip_from_file": self.clip_from_file,
             "clip_file": self.clip_file,
             "hotkey_beep": self.hotkey_beep,
@@ -203,23 +196,18 @@ class Profile:
         return f"- [{ts}] {prefix}{text}\n"
 
     def session_header_value(self, now: datetime | None = None) -> str:
-        """The value for the ``## Recording session:`` header. When the legacy
-        file option is on, read it from the ``.current_session`` file (falling
-        back to the date if the file is missing or empty). Otherwise the date."""
+        """The value for the ``## Recording session:`` header: the recording's
+        start time (sidecar ``session_start``) while a recording is active and
+        the profile reads OBS info via the clip option, else the date. Guards
+        mirror :meth:`clip_offset`, so all OBS-derived note decoration goes
+        quiet together when recording stops."""
         now = now or datetime.now()
-        if self.session_from_file and self.session_file:
-            data = _read_sidecar(self.session_file)
-            if data is not None:
+        if self.clip_from_file and self.clip_file:
+            data = _read_sidecar(self.clip_file)
+            if data and data.get("recording") is not False:
                 val = str(data.get("session_start", "") or "").strip()
                 if val:
                     return val
-            else:
-                try:
-                    val = Path(self.session_file).read_text(encoding="utf-8").strip()
-                    if val:
-                        return val
-                except OSError:
-                    pass
         return now.strftime("%Y-%m-%d")
 
     def clip_offset(self, now: datetime | None = None) -> str:
