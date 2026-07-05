@@ -252,3 +252,28 @@ def test_no_file_subheader_when_file_path_empty(tmp_path):
     text = path.read_text(encoding="utf-8")
     assert "### Recording file" not in text
     assert "- [2026-06-08 14:23:07] [06:12] early note" in text  # clip still stamped
+
+
+def test_append_note_uses_snapshot_without_rereading(tmp_path):
+    # With a snapshot passed in, append_note must not touch the sidecar again:
+    # delete it after the snapshot and all OBS decoration still lands.
+    sidecar = tmp_path / "gamenote-obs.json"
+    sidecar.write_text(
+        json.dumps(
+            {
+                "session_start": "2026-06-08_14-00-00",
+                "file_start": "2026-06-08_14-16-55",
+                "file_path": "N:\\Recordings\\dE_2.mkv",
+                "recording": True,
+            }
+        ),
+        encoding="utf-8",
+    )
+    p = _clip_profile(tmp_path, sidecar)
+    snap = p.sidecar_snapshot()
+    sidecar.unlink()
+    path = notes.append_note(p, "", "note", datetime.datetime(2026, 6, 8, 14, 23, 7), sidecar=snap)
+    text = path.read_text(encoding="utf-8")
+    assert "## Recording session: 2026-06-08_14-00-00" in text
+    assert "### Recording file: dE_2.mkv" in text
+    assert "[06:12] note" in text

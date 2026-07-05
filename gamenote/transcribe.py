@@ -162,10 +162,30 @@ class Transcriber:
         self.loaded_model_size: str = ""  # remembers what load() actually loaded
         self.loaded_device_pref: str = ""  # the device setting load() honored
         self.load_failed: bool = False  # True once load() has exhausted all attempts
+        # What the most recent load() call tried to load (set even when it
+        # fails). The app compares this -- not loaded_* -- against the config to
+        # decide whether a reload is due, so a failing target is not retried in
+        # a loop but a changed target always is.
+        self.attempted_model_size: str = ""
+        self.attempted_device_pref: str = ""
 
     @property
     def ready(self) -> bool:
         return self.model is not None
+
+    def needs_reload(self) -> bool:
+        """True when the config's model size or device no longer match what the
+        last load() attempted -- i.e. a settings change is waiting to be
+        applied. Comparing against the *attempted* target (not the loaded one)
+        means a failing target is not retried in a loop, while a changed target
+        always is. False before load() has ever run."""
+        if not self.attempted_model_size and not self.attempted_device_pref:
+            return False  # load() has never been called
+        wanted = (
+            str(self.cfg["model_size"]),
+            str(self.cfg.get("device", "auto")).strip().lower(),
+        )
+        return wanted != (self.attempted_model_size, self.attempted_device_pref)
 
     def _warmup(self, model: WhisperModel) -> None:
         """One throwaway transcription so the backend initializes now. This
@@ -183,8 +203,12 @@ class Transcriber:
         from faster_whisper import WhisperModel  # lazy import keeps module load light
 
         self.load_failed = False
-        model_size = self.cfg["model_size"]
+        # str() so attempted_* compares equal to needs_reload()'s coerced view
+        # even if a hand-edited config holds a non-string value.
+        model_size = str(self.cfg["model_size"])
         device_pref = str(self.cfg.get("device", "auto")).strip().lower()
+        self.attempted_model_size = model_size
+        self.attempted_device_pref = device_pref
         source, extra = resolve_model_source(model_size)
         attempts = _device_attempts(device_pref)
         last_exc: Exception | None = None

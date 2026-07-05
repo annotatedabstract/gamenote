@@ -6,21 +6,16 @@ are faked, so each overlay-message branch is asserted without real I/O, audio
 devices, or an event loop.
 """
 
+import json
 import pathlib
-
-import pytest
-from PySide6.QtCore import QCoreApplication
 
 from gamenote import audio as gn_audio
 from gamenote import controller as gn_controller
 from gamenote.controller import Controller
-from gamenote.profiles import Profile
+from gamenote.profiles import Profile, SidecarSnapshot
 
-
-@pytest.fixture(scope="module")
-def qapp():
-    # QObject signals need an application instance; QCoreApplication needs no GUI.
-    return QCoreApplication.instance() or QCoreApplication([])
+# QObject signals need an application instance; the shared session-scoped
+# ``qapp`` fixture (tests/conftest.py) provides it.
 
 
 class _FakeTranscriber:
@@ -78,8 +73,9 @@ def _build(monkeypatch, transcriber, record_result=None, record_exc=None):
 
     calls = {}
 
-    def fake_append(profile, context, text, now=None):
+    def fake_append(profile, context, text, now=None, sidecar=None):
         calls["append"] = (profile.id, context, text)
+        calls["sidecar"] = sidecar
         return pathlib.Path("note.md")
 
     monkeypatch.setattr(gn_controller.gn_notes, "append_note", fake_append)
@@ -175,3 +171,45 @@ def test_toggle_second_press_signals_stop(qapp, monkeypatch):
     ctl.stop_event.clear()
     ctl.on_profile("push")  # same toggle profile -> request stop
     assert ctl.stop_event.is_set()
+
+
+def test_worker_takes_one_sidecar_snapshot(qapp, monkeypatch, tmp_path):
+    # An OBS-wired profile gets a single snapshot that feeds both the context
+    # and the note append (append_note receives it instead of re-reading).
+    sidecar = tmp_path / "gamenote-obs.json"
+    sidecar.write_text(json.dumps({"game": "Hades", "recording": True}), encoding="utf-8")
+    ctl, msgs, calls = _build(monkeypatch, _FakeTranscriber(text="hi"), record_result=object())
+    profile = ctl.profiles["editing"]
+    profile.clip_from_file = True
+    profile.clip_file = str(sidecar)
+    profile.context_from_obs = True
+    ctl.on_profile("editing")
+    assert calls["append"] == ("editing", "Hades", "hi")
+    assert isinstance(calls["sidecar"], SidecarSnapshot)
+    assert calls["sidecar"].data == {"game": "Hades", "recording": True}
+
+
+def test_plain_profile_passes_no_snapshot(qapp, monkeypatch):
+    ctl, msgs, calls = _build(monkeypatch, _FakeTranscriber(), record_result=object())
+    ctl.on_profile("editing")
+    assert calls["sidecar"] is None
+
+
+def test_note_finished_emitted_after_worker(qapp, monkeypatch):
+    ctl, msgs, calls = _build(monkeypatch, _FakeTranscriber(), record_result=object())
+    done = []
+    # Capture the state AT emit time: the app's reload check runs off this
+    # signal and must see is_recording already reset.
+    ctl.note_finished.connect(lambda: done.append(ctl.is_recording))
+    ctl.on_profile("editing")
+    assert done == [False]
+
+
+def test_note_finished_emitted_even_on_error(qapp, monkeypatch):
+    ctl, msgs, calls = _build(
+        monkeypatch, _FakeTranscriber(), record_exc=gn_audio.AudioCaptureError("boom")
+    )
+    done = []
+    ctl.note_finished.connect(lambda: done.append(ctl.is_recording))
+    ctl.on_profile("editing")
+    assert done == [False]

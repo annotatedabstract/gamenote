@@ -15,7 +15,7 @@ import webbrowser
 from logging.handlers import RotatingFileHandler
 from pathlib import Path
 
-from PySide6.QtCore import Qt
+from PySide6.QtCore import QObject, Qt, QTimer, Signal
 from PySide6.QtGui import QColor, QFont, QIcon, QPainter, QPixmap
 from PySide6.QtWidgets import QApplication, QMessageBox, QSystemTrayIcon
 
@@ -150,7 +150,17 @@ def main() -> int:
     manager = gn_hotkeys.HotkeyManager()
     windows: dict[str, SettingsWindow] = {}
 
+    class _LoadSignals(QObject):
+        finished = Signal()  # a model load attempt ended (success or failure)
+
+    load_signals = _LoadSignals()
+    model_loading = {"active": False}  # guards against overlapping load threads
+
     def load_model_async() -> None:
+        if model_loading["active"]:
+            return
+        model_loading["active"] = True
+
         def run() -> None:
             try:
                 if not gn_transcribe.model_available(global_cfg["model_size"]):
@@ -175,37 +185,54 @@ def main() -> int:
                 log.error("Model load failed: %s", e)
                 controller.status_changed.emit("model error")
                 controller.launch_message.emit("model load failed", "#ffb3b3")
+            finally:
+                # Clear the guard before the queued signal fires, so the
+                # follow-up reload check sees an idle loader.
+                model_loading["active"] = False
+                load_signals.finished.emit()
 
         threading.Thread(target=run, daemon=True).start()
 
-    def on_apply(new_profiles: list) -> None:
+    def check_model_reload() -> None:
+        """Start a model reload when a settings change to the model size or
+        device is waiting (see Transcriber.needs_reload). Runs after every
+        settings apply, after every note, and after every load, so a change
+        made mid-recording or mid-load is applied as soon as it safely can
+        be."""
+        if model_loading["active"] or controller.is_recording:
+            return
+        if transcriber.needs_reload():
+            log.info("Model size or device changed; reloading.")
+            load_model_async()
+
+    load_signals.finished.connect(check_model_reload, Qt.QueuedConnection)
+    controller.note_finished.connect(check_model_reload, Qt.QueuedConnection)
+
+    def on_apply(new_profiles: list) -> list[str]:
         """Apply settings live: persist, swap profiles + hotkeys, update the
-        overlay, and reload the model only if its size changed and no note is
-        recording."""
+        overlay, and reload the model if its size or device changed (deferred
+        automatically while a note is recording or a load is running). Returns
+        the hotkeys that failed to register so the caller can surface them."""
         gn_config.save_config(cfg)
         controller.apply_profiles(new_profiles)
         controller.refresh_from_config()
         new_mapping = gn_hotkeys.build_mapping(new_profiles, controller.trigger.emit)
-        for hk in manager.set_mapping(new_mapping):
+        failed = manager.set_mapping(new_mapping)
+        for hk in failed:
             log.error("Hotkey '%s' failed to register.", hk)
         overlay.hide_ms = int(global_cfg["overlay"]["hide_ms"])
         set_overlay_enabled(bool(global_cfg["overlay"]["enabled"]))
         tray.refresh()
-        device_pref = str(global_cfg.get("device", "auto")).lower()
-        size_changed = transcriber.loaded_model_size != global_cfg["model_size"]
-        device_changed = transcriber.loaded_device_pref != device_pref
-        if transcriber.loaded_model_size and (size_changed or device_changed):
-            if controller.is_recording:
-                QMessageBox.information(
-                    None,
-                    "gamenote",
-                    "The model size or device change will apply next time you open "
-                    "settings (a note is recording right now).",
-                )
-            else:
-                log.info("Reloading model (size or device changed).")
-                load_model_async()
+        if transcriber.needs_reload() and (controller.is_recording or model_loading["active"]):
+            QMessageBox.information(
+                None,
+                "gamenote",
+                "The model size or device change will be applied automatically "
+                "as soon as the current note or model load finishes.",
+            )
+        check_model_reload()
         log.info("Settings applied.")
+        return failed
 
     def open_settings() -> None:
         existing = windows.get("settings")
@@ -300,8 +327,21 @@ def main() -> int:
     # Register hotkeys now; presses are ignored with a "loading" overlay until
     # the model is ready.
     mapping = gn_hotkeys.build_mapping(profiles, controller.trigger.emit)
-    for hk in manager.register(mapping):
+    startup_failed = manager.register(mapping)
+    for hk in startup_failed:
         log.error("Hotkey '%s' failed to register.", hk)
+    if startup_failed:
+        # Balloon after the event loop is up, so the user learns about it
+        # without having to read the log.
+        QTimer.singleShot(
+            1500,
+            lambda: tray.show_message(
+                "gamenote",
+                "Could not register hotkey(s): "
+                + ", ".join(startup_failed)
+                + ". Check Settings > Profiles.",
+            ),
+        )
     log.info(
         "Listening for %d hotkey(s): %s",
         len(mapping),

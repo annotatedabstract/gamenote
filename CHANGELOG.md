@@ -28,6 +28,27 @@ versioning.
 - Setting a context from the tray while the settings window is open is no
   longer reverted to the window's stale Context fields on Apply/Save; the
   Context group is only written back if it was actually edited.
+- OBS-derived note decoration is now read as one consistent snapshot per note:
+  the session header, `{clip}` offset, recording-file sub-header, and
+  per-profile game context all come from a single read of `gamenote-obs.json`
+  instead of four separate ones, so a note can no longer mix values from before
+  and after an OBS update (and each note does one file read instead of four).
+- A sidecar read that catches OBS mid-write (an empty or partially written
+  file — the OBS script rewrites it in place) is retried once after a short
+  delay instead of silently dropping the session header, `{clip}` stamp, and
+  game context for that note.
+- A model size or device change made while a note is recording (or while a
+  model is still loading) is no longer dropped: it now applies automatically as
+  soon as the note or load finishes, instead of waiting for the next
+  settings Apply.
+- Settings now refuse a "Min seconds" larger than "Max seconds", which would
+  have silently discarded every recorded note.
+- Hotkeys that fail to register with Windows (invalid key name, or the
+  combination is taken by another app) are now reported in a dialog on
+  Apply/Save and a tray balloon at startup, instead of only a log line.
+- If applying settings fails (e.g. the config file cannot be written), the
+  in-memory configuration is rolled back to its previous state instead of
+  diverging from what is on disk.
 
 ## [1.4.0] - 2026-06-10
 

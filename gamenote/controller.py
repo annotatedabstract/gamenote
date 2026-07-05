@@ -40,6 +40,7 @@ class Controller(QObject):
     launch_message = Signal(str, str)  # text, color (large launch-time variant)
     status_changed = Signal(str)  # short status for the tray tooltip
     trigger = Signal(str)  # profile id, emitted from the hotkey thread
+    note_finished = Signal()  # a note worker ended (saved or not); app runs deferred work
 
     def __init__(self, transcriber: Transcriber, profiles: list, config: dict) -> None:
         super().__init__()
@@ -110,8 +111,12 @@ class Controller(QObject):
             if not text:
                 self.overlay_message.emit("(no speech)", _C_MUTED, False, "none")
                 return
-            context = profile.effective_context(self._global["context"])
-            self.last_note_path = gn_notes.append_note(profile, context, text)
+            # One sidecar read per note: the session header, {clip}, file
+            # sub-header, and game context all describe the same moment even if
+            # OBS rewrites the file while the note is being appended.
+            sidecar = profile.sidecar_snapshot()
+            context = profile.effective_context(self._global["context"], sidecar=sidecar)
+            self.last_note_path = gn_notes.append_note(profile, context, text, sidecar=sidecar)
             preview = text if len(text) <= 48 else text[:45] + "..."
             self.overlay_message.emit("saved: " + preview, _C_SAVED, False, "check")
         except gn_audio.AudioCaptureError:
@@ -123,6 +128,7 @@ class Controller(QObject):
             with self.lock:
                 self.is_recording = False
                 self.active_profile_id = None
+            self.note_finished.emit()
 
     # --- live settings updates ---------------------------------------------
 

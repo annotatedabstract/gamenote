@@ -1,11 +1,13 @@
 import datetime
 import json
 
+from gamenote import profiles as gn_profiles
 from gamenote.profiles import (
     LineFormat,
     Profile,
     format_offset,
     read_context,
+    read_sidecar,
     sanitize_part,
     validate_profiles,
 )
@@ -345,3 +347,130 @@ def test_effective_context_global_file_source(tmp_path):
     plain = Profile("e", "E", "f1", "d", "x.md")
     cfg = {"source": "file", "value": "ignored", "file_path": str(f)}
     assert plain.effective_context(cfg) == "Hollow Knight"
+
+
+# --- sidecar snapshot + mid-write retry -------------------------------------
+
+
+def test_read_sidecar_parses_json_plain_text_and_missing(tmp_path):
+    f = _obs_sidecar(tmp_path, game="Hades", recording=True)
+    snap = read_sidecar(str(f))
+    assert snap.data == {"game": "Hades", "recording": True}
+    assert snap.context_value() == "Hades"
+
+    plain = tmp_path / ".current_game"
+    plain.write_text("  Cyberpunk  ", encoding="utf-8")
+    snap = read_sidecar(str(plain))
+    assert snap.data is None
+    assert snap.context_value() == "Cyberpunk"
+
+    missing = read_sidecar(str(tmp_path / "nope.json"))
+    assert missing.data is None and missing.text is None
+    assert missing.context_value() == ""
+
+
+def test_read_sidecar_retries_an_empty_mid_write_read(tmp_path, monkeypatch):
+    # The OBS script truncates the sidecar in place before writing, so a read
+    # can see an empty file. The retry must pick up the finished write.
+    f = tmp_path / "gamenote-obs.json"
+    f.write_text("", encoding="utf-8")
+    slept = []
+
+    def fake_sleep(seconds):
+        slept.append(seconds)
+        f.write_text(json.dumps({"game": "Hades"}), encoding="utf-8")
+
+    monkeypatch.setattr(gn_profiles.time, "sleep", fake_sleep)
+    snap = read_sidecar(str(f))
+    assert slept  # the suspicious read was detected and waited out
+    assert snap.data == {"game": "Hades"}
+
+
+def test_read_sidecar_retries_partial_json(tmp_path, monkeypatch):
+    f = tmp_path / "gamenote-obs.json"
+    f.write_text('{"game": "Ha', encoding="utf-8")
+
+    def fake_sleep(_seconds):
+        f.write_text(json.dumps({"game": "Hades", "recording": True}), encoding="utf-8")
+
+    monkeypatch.setattr(gn_profiles.time, "sleep", fake_sleep)
+    assert read_sidecar(str(f)).data == {"game": "Hades", "recording": True}
+
+
+def test_read_sidecar_plain_text_never_retries(tmp_path, monkeypatch):
+    # A plain-text context value is not "suspicious"; it must not pay the
+    # retry delay on every read.
+    def boom(_seconds):
+        raise AssertionError("read_sidecar slept on a plain-text file")
+
+    monkeypatch.setattr(gn_profiles.time, "sleep", boom)
+    f = tmp_path / ".current_game"
+    f.write_text("Elden Ring", encoding="utf-8")
+    assert read_sidecar(str(f)).context_value() == "Elden Ring"
+
+
+def test_read_sidecar_gives_up_after_one_retry(tmp_path, monkeypatch):
+    f = tmp_path / "gamenote-obs.json"
+    f.write_text("", encoding="utf-8")
+    slept = []
+    monkeypatch.setattr(gn_profiles.time, "sleep", lambda s: slept.append(s))
+    snap = read_sidecar(str(f))
+    assert len(slept) == 1
+    assert snap.data is None and snap.text == ""
+
+
+def test_read_sidecar_keeps_first_read_when_retry_read_fails(tmp_path, monkeypatch):
+    # If the file vanishes between the suspicious read and the retry, the
+    # first read still stands (no crash, no None-out of data we already had).
+    f = tmp_path / "gamenote-obs.json"
+    f.write_text('{"game": "Ha', encoding="utf-8")
+    monkeypatch.setattr(gn_profiles.time, "sleep", lambda _s: f.unlink())
+    snap = read_sidecar(str(f))
+    assert snap.data is None
+    assert snap.text == '{"game": "Ha'
+
+
+def test_context_value_never_leaks_a_json_fragment(tmp_path, monkeypatch):
+    # A sidecar that stays partially written (retry also sees the fragment)
+    # must not turn the fragment into a "game name" (and thus a note path).
+    f = tmp_path / "gamenote-obs.json"
+    f.write_text('{"game": "Ha', encoding="utf-8")
+    monkeypatch.setattr(gn_profiles.time, "sleep", lambda _s: None)
+    assert read_sidecar(str(f)).context_value() == ""
+    assert read_context({"source": "file", "file_path": str(f)}) == ""
+
+
+def test_profile_methods_use_the_snapshot_not_the_file(tmp_path):
+    # Once a snapshot is taken the methods must not re-read the file: delete it
+    # and every OBS-derived value still resolves from the snapshot.
+    f = _obs_sidecar(
+        tmp_path,
+        game="Hollow Knight",
+        session_start="2026-06-08_14-00-00",
+        file_start="2026-06-08_14-16-55",
+        file_path="N:\\Recordings\\dE_2.mkv",
+        recording=True,
+    )
+    p = Profile(
+        "e",
+        "E",
+        "f1",
+        "d",
+        "x.md",
+        clip_from_file=True,
+        clip_file=str(f),
+        context_from_obs=True,
+    )
+    snap = p.sidecar_snapshot()
+    f.unlink()
+    now = datetime.datetime(2026, 6, 8, 14, 23, 7)
+    assert p.session_header_value(now, sidecar=snap) == "2026-06-08_14-00-00"
+    assert p.clip_offset(now, sidecar=snap) == "06:12"
+    assert p.recording_file_name(sidecar=snap) == "dE_2.mkv"
+    assert p.effective_context(_GLOBAL_CTX, sidecar=snap) == "Hollow Knight"
+
+
+def test_sidecar_snapshot_none_when_option_off(tmp_path):
+    assert Profile("e", "E", "f1", "d", "x.md").sidecar_snapshot() is None
+    no_file = Profile("e", "E", "f1", "d", "x.md", clip_from_file=True, clip_file="")
+    assert no_file.sidecar_snapshot() is None

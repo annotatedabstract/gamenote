@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import json
 import re
+import time
 from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path, PureWindowsPath
@@ -66,23 +67,83 @@ def _parse_sidecar_time(value: str) -> datetime | None:
     return None
 
 
-def _read_sidecar(path: str) -> dict[str, Any] | None:
-    """Parse a ``gamenote-obs.json`` sidecar into a dict, or None if the file is
-    missing, unreadable, empty, or not a JSON object (e.g. a plain-text value).
-    Callers fall back accordingly."""
+# How long to wait before re-reading a sidecar that looks caught mid-write.
+# The OBS script's truncate-then-write is sub-millisecond, so this is generous
+# while staying unnoticeable on the paths that read on the GUI thread (the tray
+# tooltip and the settings preview, when the file is persistently empty).
+_SIDECAR_RETRY_DELAY = 0.03
+
+
+@dataclass(frozen=True)
+class SidecarSnapshot:
+    """One consistent read of a sidecar/context file: the parsed JSON object (or
+    None when the content is not a JSON object) plus the raw text (or None when
+    the file is missing/unreadable). Taking a single snapshot per note keeps all
+    OBS-derived decoration -- session header, {clip}, file sub-header, game --
+    consistent with each other even while OBS rewrites the file."""
+
+    data: dict[str, Any] | None
+    text: str | None
+
+    def context_value(self) -> str:
+        """The context (game) this file provides: the JSON ``game`` key, or the
+        whole content for a plain-text file, or "" when missing/empty. Content
+        that starts with ``{`` but did not parse is clearly a broken/truncated
+        sidecar, never a game name, so it also yields "" rather than leaking a
+        JSON fragment into note paths."""
+        if self.data is not None:
+            return str(self.data.get("game", "") or "").strip()
+        if self.text is not None:
+            stripped = self.text.strip()
+            return "" if stripped.startswith("{") else stripped
+        return ""
+
+
+def _looks_mid_write(raw: str) -> bool:
+    """True when a read looks like it caught OBS mid-write: the write truncates
+    in place, so the reader can see an empty file or a JSON prefix that does not
+    parse yet. A plain-text context value never matches (no retry cost there)."""
+    stripped = raw.strip()
+    if not stripped:
+        return True
+    if stripped.startswith("{"):
+        try:
+            json.loads(stripped)
+        except ValueError:
+            return True
+    return False
+
+
+def read_sidecar(path: str) -> SidecarSnapshot:
+    """Read ``path`` once and parse it. The OBS script rewrites the sidecar in
+    place (truncate + write), so an empty or partially-written JSON read is
+    retried once after a short delay before being taken at face value."""
     if not path:
-        return None
+        return SidecarSnapshot(None, None)
+
+    def _read() -> str | None:
+        try:
+            return Path(path).read_text(encoding="utf-8")
+        except OSError:
+            return None
+
+    raw = _read()
+    if raw is not None and _looks_mid_write(raw):
+        time.sleep(_SIDECAR_RETRY_DELAY)
+        retry = _read()
+        if retry is not None:
+            raw = retry
+
+    if raw is None:
+        return SidecarSnapshot(None, None)
+    stripped = raw.strip()
+    if not stripped:
+        return SidecarSnapshot(None, "")
     try:
-        raw = Path(path).read_text(encoding="utf-8").strip()
-    except OSError:
-        return None
-    if not raw:
-        return None
-    try:
-        data = json.loads(raw)
+        data = json.loads(stripped)
     except ValueError:  # includes json.JSONDecodeError; plain-text value
-        return None
-    return data if isinstance(data, dict) else None
+        data = None
+    return SidecarSnapshot(data if isinstance(data, dict) else None, raw)
 
 
 @dataclass
@@ -200,29 +261,43 @@ class Profile:
         ts = now.strftime(self.line_format.timestamp_format)
         return f"- [{ts}] {prefix}{text}\n"
 
-    def session_header_value(self, now: datetime | None = None) -> str:
+    def sidecar_snapshot(self) -> SidecarSnapshot | None:
+        """One read of this profile's OBS sidecar, or None when the profile does
+        not read OBS info. Take this once per note and pass it to the methods
+        below so the session header, {clip}, file sub-header, and game all
+        describe the same moment (and the file is read once, not four times)."""
+        if self.clip_from_file and self.clip_file:
+            return read_sidecar(self.clip_file)
+        return None
+
+    def session_header_value(
+        self, now: datetime | None = None, sidecar: SidecarSnapshot | None = None
+    ) -> str:
         """The value for the ``## Recording session:`` header: the recording's
         start time (sidecar ``session_start``) while a recording is active and
         the profile reads OBS info via the clip option, else the date. Guards
         mirror :meth:`clip_offset`, so all OBS-derived note decoration goes
-        quiet together when recording stops."""
+        quiet together when recording stops. ``sidecar`` (from
+        :meth:`sidecar_snapshot`) skips the file read."""
         now = now or datetime.now()
         if self.clip_from_file and self.clip_file:
-            data = _read_sidecar(self.clip_file)
+            data = (sidecar if sidecar is not None else read_sidecar(self.clip_file)).data
             if data and data.get("recording") is not False:
                 val = str(data.get("session_start", "") or "").strip()
                 if val:
                     return val
         return now.strftime("%Y-%m-%d")
 
-    def clip_offset(self, now: datetime | None = None) -> str:
+    def clip_offset(
+        self, now: datetime | None = None, sidecar: SidecarSnapshot | None = None
+    ) -> str:
         """Elapsed position into the current OBS recording segment, formatted (see
         :func:`format_offset`), or ``""`` when: the option is off, the sidecar is
         missing/unreadable, recording is not active, ``file_start`` is absent or
         unparseable, or the offset would be negative (a stale sidecar)."""
         if not (self.clip_from_file and self.clip_file):
             return ""
-        data = _read_sidecar(self.clip_file)
+        data = (sidecar if sidecar is not None else read_sidecar(self.clip_file)).data
         if not data or data.get("recording") is False:
             return ""
         start = _parse_sidecar_time(str(data.get("file_start", "")))
@@ -234,7 +309,7 @@ class Profile:
             return ""
         return format_offset(seconds)
 
-    def recording_file_name(self) -> str:
+    def recording_file_name(self, sidecar: SidecarSnapshot | None = None) -> str:
         """Base name of the current OBS recording file (sidecar ``file_path``),
         for the ``### Recording file:`` sub-header, or ``""`` when: the clip
         option is off, the sidecar is missing/unreadable, recording is not
@@ -243,7 +318,7 @@ class Profile:
         file sub-header."""
         if not (self.clip_from_file and self.clip_file):
             return ""
-        data = _read_sidecar(self.clip_file)
+        data = (sidecar if sidecar is not None else read_sidecar(self.clip_file)).data
         if not data or data.get("recording") is False:
             return ""
         file_path = str(data.get("file_path", "") or "").strip()
@@ -252,7 +327,9 @@ class Profile:
         # PureWindowsPath handles OBS paths with either separator on any host OS.
         return PureWindowsPath(file_path).name.strip()
 
-    def effective_context(self, global_context_cfg: dict[str, Any]) -> str:
+    def effective_context(
+        self, global_context_cfg: dict[str, Any], sidecar: SidecarSnapshot | None = None
+    ) -> str:
         """The {context} value for this profile: the global context, unless the
         profile reads OBS info and opts into sourcing the context (the game)
         from that same file. The override fully replaces the global context --
@@ -261,7 +338,8 @@ class Profile:
         recording stops: the last game is still the best guess at what is
         being played."""
         if self.clip_from_file and self.clip_file and self.context_from_obs:
-            return read_context({"source": "file", "file_path": self.clip_file})
+            snap = sidecar if sidecar is not None else read_sidecar(self.clip_file)
+            return snap.context_value()
         return read_context(global_context_cfg)
 
 
@@ -316,17 +394,12 @@ def validate_profiles(profiles: list[Profile]) -> list[str]:
 def read_context(context_cfg: dict[str, Any]) -> str:
     """The app-owned context value. ``source: "manual"`` returns the stored
     value; ``source: "file"`` re-reads ``file_path`` each call (the optional OBS
-    bridge, e.g. pointing at ``.current_game``). Missing/unreadable yields ""."""
+    bridge; a JSON sidecar's ``game`` key or a plain-text value both work).
+    Missing/unreadable yields ""."""
     source = context_cfg.get("source", "manual")
     if source == "file":
         file_path = context_cfg.get("file_path", "")
         if not file_path:
             return ""
-        data = _read_sidecar(file_path)
-        if data is not None:
-            return str(data.get("game", "") or "").strip()
-        try:
-            return Path(file_path).read_text(encoding="utf-8").strip()
-        except OSError:
-            return ""
+        return read_sidecar(file_path).context_value()
     return str(context_cfg.get("value", "") or "").strip()

@@ -4,6 +4,24 @@ from pathlib import Path
 from gamenote import config
 
 
+def test_validate_global_min_max():
+    ok = {"model_size": "small.en", "min_seconds": 0.4, "max_seconds": 60.0}
+    assert config.validate_global(ok) == []
+    assert config.validate_global({**ok, "min_seconds": 5, "max_seconds": 5}) == []
+    errors = config.validate_global({**ok, "min_seconds": 10.0, "max_seconds": 5.0})
+    assert any("min seconds" in e.lower() for e in errors)
+    # junk types are flagged, not raised
+    assert config.validate_global({**ok, "min_seconds": "x", "max_seconds": 5})
+
+
+def test_validate_global_rejects_empty_model_size():
+    base = {"min_seconds": 0.4, "max_seconds": 60.0}
+    for bad in ("", "   ", None):
+        errors = config.validate_global({**base, "model_size": bad})
+        assert any("model size" in e.lower() for e in errors), bad
+    assert config.validate_global({**base, "model_size": "small.en"}) == []
+
+
 def test_load_creates_defaults(appdata):
     cfg = config.load_config()
     assert config.config_path().exists()

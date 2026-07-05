@@ -1,6 +1,8 @@
 import sys
 import types
 
+import pytest
+
 from gamenote.transcribe import Transcriber, _device_attempts
 
 
@@ -62,3 +64,56 @@ def test_load_force_cpu_never_tries_cuda(monkeypatch):
     t = Transcriber({"model_size": "small.en", "device": "cpu", "sample_rate": 16000})
     assert t.load() == "cpu"
     assert [d for d, _ in attempts] == ["cpu"]
+
+
+def test_load_records_attempted_target_even_on_failure(monkeypatch):
+    # The app's deferred-reload check compares the config against the last
+    # *attempted* target, so a failing load must still record what it tried
+    # (otherwise the app would retry the same failing target in a loop).
+    _install_fake_faster_whisper(monkeypatch, fail_devices=("cpu",))
+    t = Transcriber({"model_size": "small.en", "device": "cpu", "sample_rate": 16000})
+    with pytest.raises(RuntimeError):
+        t.load()
+    assert t.attempted_model_size == "small.en"
+    assert t.attempted_device_pref == "cpu"
+    assert t.loaded_model_size == ""  # nothing actually loaded
+    assert t.load_failed is True
+
+
+def test_load_records_attempted_target_on_success(monkeypatch):
+    _install_fake_faster_whisper(monkeypatch)
+    t = Transcriber({"model_size": "small.en", "device": "cpu", "sample_rate": 16000})
+    t.load()
+    assert t.attempted_model_size == t.loaded_model_size == "small.en"
+    assert t.attempted_device_pref == t.loaded_device_pref == "cpu"
+
+
+def test_needs_reload_tracks_config_changes(monkeypatch):
+    cfg = {"model_size": "small.en", "device": "cpu", "sample_rate": 16000}
+    t = Transcriber(cfg)
+    assert t.needs_reload() is False  # load() never called: nothing to re-apply
+
+    _install_fake_faster_whisper(monkeypatch)
+    t.load()
+    assert t.needs_reload() is False  # config matches what was attempted
+    cfg["model_size"] = "medium.en"
+    assert t.needs_reload() is True  # a settings change is waiting
+    cfg["model_size"] = "small.en"
+    cfg["device"] = "  AUTO "  # normalization: case/whitespace do not count
+    assert t.needs_reload() is True  # cpu -> auto is a real change
+    cfg["device"] = " CPU "
+    assert t.needs_reload() is False
+
+
+def test_needs_reload_after_failed_load_only_on_new_target(monkeypatch):
+    # A failed load must NOT report needs_reload for the same target (that
+    # would loop), but a corrected target must (recovers from e.g. an empty
+    # model size having been applied).
+    cfg = {"model_size": "", "device": "cpu", "sample_rate": 16000}
+    _install_fake_faster_whisper(monkeypatch, fail_devices=("cpu",))
+    t = Transcriber(cfg)
+    with pytest.raises(RuntimeError):
+        t.load()
+    assert t.needs_reload() is False  # same (failing) target: do not loop
+    cfg["model_size"] = "small.en"
+    assert t.needs_reload() is True  # user fixed the setting: reload is due

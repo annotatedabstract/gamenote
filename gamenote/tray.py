@@ -168,7 +168,11 @@ class Tray(QObject):
         if checked:
             self.hotkeys.pause()
         else:
-            self.hotkeys.resume()
+            failed = self.hotkeys.resume()
+            if failed:
+                # A mapping stored while paused (settings Apply) is first bound
+                # here, so this is the only place its failures can surface.
+                self.show_message("gamenote", "Could not register hotkey(s): " + ", ".join(failed))
         self._refresh_tooltip()
 
     @Slot(str)

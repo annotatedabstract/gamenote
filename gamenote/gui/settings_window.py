@@ -3,12 +3,16 @@
 Edits are made against working copies of the profiles and gathered from the
 widgets on apply, so Cancel discards cleanly. Applying calls back into the app
 (``on_apply``) which persists the config and wires the changes in live:
-re-registers hotkeys, updates the overlay, and reloads the model only if the
-model size changed and no note is recording.
+re-registers hotkeys (returning any that failed to bind, surfaced in a
+dialog), updates the overlay, and reloads the model if its size or device
+changed (deferred automatically while a note is recording or a load is
+running). If ``on_apply`` raises, the config dicts are restored to their
+pre-apply state so memory and disk stay in sync.
 """
 
 from __future__ import annotations
 
+import copy
 import logging
 from collections.abc import Callable
 
@@ -37,7 +41,7 @@ from PySide6.QtWidgets import (
 )
 
 from .. import audio as gn_audio
-from ..config import default_config, default_global
+from ..config import default_config, default_global, validate_global
 from ..profiles import Profile, profiles_from_config, validate_profiles
 from .mic_meter import MicMeter
 from .profile_editor import ProfileEditor
@@ -78,7 +82,7 @@ class _WheelGuard(QObject):
 
 
 class SettingsWindow(QDialog):
-    def __init__(self, cfg: dict, on_apply: Callable[[list], None], parent=None) -> None:
+    def __init__(self, cfg: dict, on_apply: Callable[[list], list | None], parent=None) -> None:
         super().__init__(parent)
         self.setWindowTitle("gamenote settings")
         self.resize(760, 720)
@@ -562,23 +566,44 @@ class SettingsWindow(QDialog):
     # --- apply / save ------------------------------------------------------
 
     def _apply(self) -> bool:
-        errors = validate_profiles(self.working_profiles)
+        gathered = self._gather_global()
+        errors = validate_profiles(self.working_profiles) + validate_global(gathered)
         if errors:
             QMessageBox.warning(
-                self, "Invalid profiles", "Fix these before applying:\n\n- " + "\n- ".join(errors)
+                self, "Invalid settings", "Fix these before applying:\n\n- " + "\n- ".join(errors)
             )
             return False
-        self.cfg["global"].update(self._gather_global())
+        # Snapshot the live config so a failed apply leaves it exactly as it
+        # was. The restore mutates cfg["global"] in place because the controller
+        # holds a reference to that same dict.
+        old_global = copy.deepcopy(self.cfg["global"])
+        old_profiles = copy.deepcopy(self.cfg["profiles"])
+        self.cfg["global"].update(gathered)
         self.cfg["profiles"] = [p.to_dict() for p in self.working_profiles]
         try:
-            self.on_apply([Profile.from_dict(p.to_dict()) for p in self.working_profiles])
+            failed_hotkeys = (
+                self.on_apply([Profile.from_dict(p.to_dict()) for p in self.working_profiles]) or []
+            )
         except Exception as e:
+            # update() (no clear()) so the shared dict is never momentarily
+            # empty for a worker thread reading it; the schema is fixed, so
+            # overwriting every key is a full restore.
+            self.cfg["global"].update(old_global)
+            self.cfg["profiles"] = old_profiles
             log.error("Applying settings failed: %s", e)
             QMessageBox.critical(self, "gamenote", f"Could not apply settings:\n{e}")
             return False
         # An applied edit is in the config now; track only edits made after
         # this point so a later tray context change survives the next apply.
         self._context_dirty = False
+        if failed_hotkeys:
+            QMessageBox.warning(
+                self,
+                "Hotkeys not registered",
+                "The settings were applied, but these hotkeys could not be "
+                "registered (invalid key name, or already in use by another "
+                "application):\n\n- " + "\n- ".join(failed_hotkeys),
+            )
         return True
 
     def _on_apply_clicked(self) -> None:

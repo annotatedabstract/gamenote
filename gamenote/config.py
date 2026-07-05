@@ -196,6 +196,23 @@ def default_profile_dict(profile_id: str) -> dict[str, Any] | None:
     return None
 
 
+def validate_global(g: dict[str, Any]) -> list[str]:
+    """Return human-readable problems with the global settings (empty = valid).
+    Guards values the individual widgets cannot: a ``min_seconds`` above
+    ``max_seconds`` would silently discard every note at runtime (capture stops
+    at max, then the min check drops the audio), and the editable model-size
+    combo can be cleared to an empty string, which no model load can honor."""
+    errors: list[str] = []
+    if not str(g.get("model_size") or "").strip():
+        errors.append("Model size must not be empty")
+    try:
+        if float(g.get("min_seconds", 0)) > float(g.get("max_seconds", 0)):
+            errors.append("Min seconds is greater than max seconds; every note would be discarded")
+    except (TypeError, ValueError):
+        errors.append("min_seconds and max_seconds must be numbers")
+    return errors
+
+
 def save_config(cfg: dict[str, Any]) -> None:
     path = config_path()
     path.parent.mkdir(parents=True, exist_ok=True)

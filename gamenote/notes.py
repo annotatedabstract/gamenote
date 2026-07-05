@@ -17,7 +17,7 @@ import re
 from datetime import datetime
 from pathlib import Path
 
-from .profiles import Profile
+from .profiles import Profile, SidecarSnapshot
 
 log = logging.getLogger("gamenote.notes")
 
@@ -71,18 +71,23 @@ def append_note(
     context: str,
     text: str,
     now: datetime | None = None,
+    sidecar: SidecarSnapshot | None = None,
 ) -> Path:
     """Append a formatted note line for ``profile`` and return the file path.
 
     Creates the destination directory, writes an H1 on a new file, manages the
     date-based session header (when the profile enables headers) and the
     recording-file sub-header (when the profile stamps recording positions),
-    then appends the rendered line."""
+    then appends the rendered line. Pass ``sidecar`` (one
+    :meth:`~gamenote.profiles.Profile.sidecar_snapshot` per note) so the header,
+    sub-header, and {clip} token all come from a single consistent read; without
+    it each falls back to reading the file itself."""
     now = now or datetime.now()
     path = profile.resolve_path(context, now)
     path.parent.mkdir(parents=True, exist_ok=True)
 
-    line = profile.render_line(text, now)
+    clip = profile.clip_offset(now, sidecar=sidecar) if sidecar is not None else None
+    line = profile.render_line(text, now, clip=clip)
     new_file = not path.exists()
 
     need_header = False
@@ -90,10 +95,10 @@ def append_note(
     file_name = ""
     need_file_header = False
     if profile.use_session_headers:
-        header_value = profile.session_header_value(now)
+        header_value = profile.session_header_value(now, sidecar=sidecar)
         last_session, last_file = (None, None) if new_file else last_headers_in_file(path)
         need_header = new_file or (last_session != header_value)
-        file_name = profile.recording_file_name()
+        file_name = profile.recording_file_name(sidecar=sidecar)
         need_file_header = bool(file_name) and (need_header or last_file != file_name)
 
     with open(path, "a", encoding="utf-8") as f:
