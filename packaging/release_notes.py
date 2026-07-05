@@ -25,6 +25,10 @@ def extract_section(changelog: str, version: str) -> str | None:
 
 
 def main(argv: list[str]) -> int:
+    # The consumer (gh --notes-file) reads UTF-8; without this, a redirected
+    # stdout on Windows writes the locale codepage (cp1252) and an en-dash in
+    # the CHANGELOG becomes a replacement character in the release notes.
+    sys.stdout.reconfigure(encoding="utf-8")
     if len(argv) != 2:
         print("usage: release_notes.py <version|vX.Y.Z>", file=sys.stderr)
         return 2

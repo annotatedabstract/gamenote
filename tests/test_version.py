@@ -56,6 +56,23 @@ def test_release_notes_extracts_the_current_version_section():
     assert not re.search(r"^\[[^\]]+\]:", section, re.MULTILINE)  # no link defs
 
 
+def test_release_notes_stdout_is_utf8():
+    """Redirected stdout must be UTF-8 regardless of the Windows locale
+    codepage: gh reads the notes file as UTF-8, and v1.5.0's en-dash shipped
+    as a replacement character before this was forced."""
+    import subprocess
+    import sys as _sys
+
+    out = subprocess.run(
+        [_sys.executable, str(_ROOT / "packaging" / "release_notes.py"), "1.5.0"],
+        capture_output=True,
+        cwd=_ROOT,
+    )
+    text = out.stdout.decode("utf-8", errors="strict")  # raises on cp1252 bytes
+    assert "\N{EN DASH}" in text  # the 1.5.0 section really contains one
+    assert "�" not in text
+
+
 def test_release_notes_section_boundaries():
     rn = _load_release_notes_module()
     changelog = (
