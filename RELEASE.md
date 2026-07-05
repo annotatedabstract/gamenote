@@ -10,8 +10,9 @@ A stable release is one commit plus one tag; CI does the rest.
 2. **Move the CHANGELOG notes**: retitle the `## [Unreleased]` section of
    `CHANGELOG.md` to `## [x.y.z] - YYYY-MM-DD`, start a fresh empty
    `## [Unreleased]` above it, and update the link definitions at the bottom
-   (add `[x.y.z]: .../compare/v<prev>...vx.y.z`, point `[Unreleased]` at
-   `vx.y.z...HEAD`). This section becomes the GitHub release notes verbatim.
+   (add `[x.y.z]: .../releases/tag/vx.y.z` like the existing entries, and
+   point `[Unreleased]` at `compare/vx.y.z...HEAD`). This section becomes the
+   GitHub release notes verbatim.
 3. **Commit and push** to `main`, and wait for CI to go green
    (`tests/test_version.py` fails the run if the CHANGELOG section for the new
    version is missing — a bump is always documented).

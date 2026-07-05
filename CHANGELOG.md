@@ -6,6 +6,8 @@ versioning.
 
 ## [Unreleased]
 
+## [1.5.0] - 2026-07-05
+
 ### Added
 - Stable releases are now built and published by CI: pushing a `vX.Y.Z` tag
   runs `.github/workflows/release.yml`, which verifies the tag against the
@@ -194,7 +196,8 @@ versioning.
   transcription, a focus-safe overlay, and a per-user installer with the
   small.en model bundled (CPU by default).
 
-[Unreleased]: https://github.com/annotatedabstract/gamenote/compare/v1.4.0...HEAD
+[Unreleased]: https://github.com/annotatedabstract/gamenote/compare/v1.5.0...HEAD
+[1.5.0]: https://github.com/annotatedabstract/gamenote/releases/tag/v1.5.0
 [1.4.0]: https://github.com/annotatedabstract/gamenote/releases/tag/v1.4.0
 [1.3.0]: https://github.com/annotatedabstract/gamenote/releases/tag/v1.3.0
 [1.2.0]: https://github.com/annotatedabstract/gamenote/releases/tag/v1.2.0
