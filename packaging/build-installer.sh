@@ -33,9 +33,13 @@ if [ -z "$ISCC" ]; then
   exit 1
 fi
 
-# 3. Compile the installer.
-echo "Compiling installer with: $ISCC"
-"$ISCC" packaging/installer.iss
+# 3. Compile the installer, stamping the app version from the single source
+#    of truth (gamenote/__init__.py). MSYS_NO_PATHCONV/MSYS2_ARG_CONV_EXCL stop
+#    Git Bash from mangling the /D switch into a Windows path.
+VERSION="$(python -c 'import gamenote; print(gamenote.__version__)')"
+echo "Compiling installer for version $VERSION with: $ISCC"
+MSYS_NO_PATHCONV=1 MSYS2_ARG_CONV_EXCL="/D" \
+  "$ISCC" "/DMyAppVersion=$VERSION" packaging/installer.iss
 
 echo
 echo "Done. Installer is in packaging/installer_output/"

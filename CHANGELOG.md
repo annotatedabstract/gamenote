@@ -7,6 +7,11 @@ versioning.
 ## [Unreleased]
 
 ### Added
+- Stable releases are now built and published by CI: pushing a `vX.Y.Z` tag
+  runs `.github/workflows/release.yml`, which verifies the tag against the
+  package version, re-runs lint and tests, builds the installer, and creates
+  the GitHub release with the matching CHANGELOG section as its notes.
+  `RELEASE.md` documents the flow.
 - Per-profile game-as-context: a profile that reads OBS recording info can now
   also source its `{context}` from the same `gamenote-obs.json` ("Also read
   {context} (the game) from this file"), so e.g. editing notes follow the OBS
@@ -15,6 +20,12 @@ versioning.
   where everything should follow OBS.
 
 ### Changed
+- The app version is single-sourced from `gamenote/__init__.py`: the installer
+  script and both CI workflows pass it to Inno Setup, so
+  `packaging/installer.iss` no longer carries its own copy to keep in sync.
+- CI now tests Python 3.11–3.14, and both the dev and release builds ship on
+  Python 3.14 (previously dev builds used 3.12 while local stable builds used
+  3.14).
 - The per-profile OBS option is relabeled "Read OBS recording info from a file"
   (was "Stamp recording position from an OBS file") and its path field "OBS
   file" (was "Recording file"), reflecting that it now drives the `{clip}`

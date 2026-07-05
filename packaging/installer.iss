@@ -8,9 +8,13 @@
 ; Requires Inno Setup 6:  winget install JRSoftware.InnoSetup
 
 #define MyAppName "gamenote"
-; CI overrides this for dev-channel builds: ISCC /DMyAppVersion=1.3.0-dev.<sha>
+; The version is single-sourced from gamenote/__init__.py: every real build
+; passes /DMyAppVersion=<version> (build-installer.sh locally, the release and
+; dev-build workflows in CI). The fallback below only exists so a bare
+; "ISCC installer.iss" still compiles -- into an obviously mislabeled
+; installer, never a silently stale version.
 #ifndef MyAppVersion
-#define MyAppVersion "1.4.0"
+#define MyAppVersion "0.0.0-unset"
 #endif
 #define MyAppPublisher "AnnotatedAbstract"
 #define MyAppURL "https://github.com/annotatedabstract/gamenote"

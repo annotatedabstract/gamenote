@@ -187,12 +187,15 @@ bash packaging/build-installer.sh
 It builds the app first if needed, then compiles `packaging/installer.iss`. The
 installer lands in `packaging/installer_output/gamenote-setup-<version>.exe`. The
 installer is per user by default (no admin), with optional desktop and
-"run at login" shortcuts the user can tick during setup. Keep `MyAppVersion` in
-`packaging/installer.iss` in sync with `gamenote/__init__.py`.
+"run at login" shortcuts the user can tick during setup. The version is
+single-sourced from `gamenote/__init__.py`; the script passes it to Inno Setup,
+so there is nothing to keep in sync by hand.
 
-The installer (about 90 MB) is too large for the git repo, so distribute it as a
-GitHub Release asset, not a committed file. Tag a release and upload
-`gamenote-setup-<version>.exe` to it.
+Releases are built by CI, not locally: push a `v<version>` tag and the release
+workflow builds the installer, creates the GitHub release with the matching
+CHANGELOG section as notes, and uploads the asset. See [RELEASE.md](RELEASE.md)
+for the step-by-step flow (the local build above remains useful for testing
+and as a fallback).
 
 ### Automated dev builds (CI)
 
@@ -206,11 +209,11 @@ pre-releases. Details:
   time) that the spec bundles; the in-app dev channel compares it against the
   `commit:` / `built_at:` lines in the dev release body, which CI composes from
   the same file.
-- CI builds on Python 3.12 (the newest matrix-tested version); local stable
-  releases may use a newer Python. Accepted difference.
-- CI passes `/DMyAppVersion=<version>-dev.<sha>` to ISCC; the `#ifndef` guard in
-  `packaging/installer.iss` lets the command line win, so dev installs are
-  identifiable in Add/Remove Programs.
+- Both CI channels (dev and release) build on Python 3.14, which is also in the
+  test matrix, so shipped builds always run a tested interpreter.
+- CI passes `/DMyAppVersion=<version>-dev.<sha>` to ISCC (the same mechanism
+  every build uses to receive the version), so dev installs are identifiable
+  in Add/Remove Programs.
 
 ## Running from source (development)
 

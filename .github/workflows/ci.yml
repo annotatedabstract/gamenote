@@ -12,17 +12,23 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        python-version: ["3.11", "3.12"]
+        # 3.14 is what shipped builds run on (see build-dev and release.yml);
+        # the older versions keep the source install honest.
+        python-version: ["3.11", "3.12", "3.13", "3.14"]
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python-version }}
+          cache: pip
       - name: Install dev dependencies
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements-dev.txt
+      # bash, not the default pwsh: pwsh only propagates the LAST command's
+      # exit code, which would let a ruff check failure slip through.
       - name: Lint (ruff)
+        shell: bash
         run: |
           ruff check gamenote main.pyw tests
           ruff format --check gamenote main.pyw tests
@@ -47,9 +53,9 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
-          # The newest matrix-tested version. Local stable releases are built on
-          # the maintainer's Python (3.14); dev builds accept this difference.
-          python-version: "3.12"
+          # Keep in sync with release.yml so the dev and stable channels ship
+          # the same runtime (3.14 is also matrix-tested above).
+          python-version: "3.14"
           cache: pip
       - name: Install build dependencies
         run: |

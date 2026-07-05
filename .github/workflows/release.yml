@@ -1,0 +1,82 @@
+# Stable release: push a tag like v1.5.0 and CI builds the installer, creates
+# the GitHub release with the matching CHANGELOG section as notes, and uploads
+# the asset. The tag must match gamenote.__version__ (the single source of
+# truth for the version) or the run fails before building anything.
+#
+# Flow (see RELEASE.md): bump gamenote/__init__.py, move the CHANGELOG
+# Unreleased notes into a "## [x.y.z]" section, commit, tag vX.Y.Z, push the
+# tag. Nothing else is hand-maintained.
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+
+jobs:
+  release:
+    runs-on: windows-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          # Keep in sync with the build-dev job in ci.yml so both channels
+          # ship the same runtime.
+          python-version: "3.14"
+          cache: pip
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt -r requirements-dev.txt pyinstaller
+
+      - name: Verify the tag matches gamenote.__version__
+        shell: bash
+        run: |
+          set -euo pipefail
+          version=$(python -c "import gamenote; print(gamenote.__version__)")
+          if [ "v$version" != "$GITHUB_REF_NAME" ]; then
+            echo "Tag $GITHUB_REF_NAME does not match gamenote.__version__ ($version)." >&2
+            echo "Bump gamenote/__init__.py (and the CHANGELOG) before tagging." >&2
+            exit 1
+          fi
+
+      # Tag pushes do not run the CI workflow, so gate the release on the same
+      # checks here. bash, not the default pwsh: pwsh only propagates the LAST
+      # command's exit code, which would let a ruff check failure slip through.
+      - name: Lint (ruff)
+        shell: bash
+        run: |
+          ruff check gamenote main.pyw tests
+          ruff format --check gamenote main.pyw tests
+      - name: Test (pytest)
+        run: pytest
+
+      - name: Build the app (stamps build_info.json)
+        shell: bash
+        run: bash packaging/build.sh
+
+      - name: Build the installer
+        shell: pwsh
+        run: |
+          $version = python -c "import gamenote; print(gamenote.__version__)"
+          & "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe" `
+            "/DMyAppVersion=${version}" packaging\installer.iss
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Publish the release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          version=$(python -c "import gamenote; print(gamenote.__version__)")
+          python packaging/release_notes.py "$version" > release_notes.md
+          # Create-with-asset: the release appears before the upload finishes,
+          # but the in-app updater ignores a release with no .exe asset, so a
+          # mid-publish check sees "nothing to offer", never a broken offer.
+          gh release create "$GITHUB_REF_NAME" \
+            --verify-tag \
+            --title "v${version}" \
+            --notes-file release_notes.md \
+            "packaging/installer_output/gamenote-setup-${version}.exe"
