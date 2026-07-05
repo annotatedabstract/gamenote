@@ -20,6 +20,21 @@ versioning.
   where everything should follow OBS.
 
 ### Changed
+- Update downloads are now verified against the SHA-256 digest GitHub records
+  for the release asset (in addition to the existing size check); a mismatch
+  discards the download instead of running the installer. Releases without a
+  digest keep the size-only check.
+- Upgrading via the installer now deletes the previous version's `_internal`
+  payload before copying the new one, so files renamed or removed between
+  versions cannot linger and get loaded by mistake. Config, log, and
+  downloaded models live outside the install folder and are untouched; a model
+  bundled *inside* the payload (v1.0/v1.1 installs upgraded in place, or a
+  hand-pre-bundled offline build) is moved to `%LOCALAPPDATA%\gamenote\models`
+  first, where the app now also loads models from, so it keeps working offline
+  across upgrades.
+- The single-instance check uses a named mutex on Windows instead of binding a
+  fixed localhost port, so an unrelated program owning that port can no longer
+  make gamenote refuse to start with "already running".
 - The app version is single-sourced from `gamenote/__init__.py`: the installer
   script and both CI workflows pass it to Inno Setup, so
   `packaging/installer.iss` no longer carries its own copy to keep in sync.
@@ -60,6 +75,8 @@ versioning.
 - If applying settings fails (e.g. the config file cannot be written), the
   in-memory configuration is rolled back to its previous state instead of
   diverging from what is on disk.
+- Version tags with a suffix (e.g. `v1.2.3-rc1`) no longer parse with
+  concatenated digits (`1.2.31`); the suffix is ignored.
 
 ## [1.4.0] - 2026-06-10
 

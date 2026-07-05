@@ -1,18 +1,15 @@
+import hashlib
 import json
 import sys
 import urllib.error
 from unittest import mock
 
 import pytest
-from PySide6.QtCore import QCoreApplication
 
 from gamenote import updater
 
-
-@pytest.fixture(scope="module")
-def qapp():
-    # Qt signals need an application instance; QCoreApplication needs no GUI.
-    return QCoreApplication.instance() or QCoreApplication([])
+# Qt signals need an application instance; the shared session-scoped ``qapp``
+# fixture (tests/conftest.py) provides it.
 
 
 def test_parse_version():
@@ -20,6 +17,10 @@ def test_parse_version():
     assert updater.parse_version("1.1") == (1, 1, 0)
     assert updater.parse_version("v2") == (2, 0, 0)
     assert updater.parse_version("") == (0, 0, 0)
+    # A suffix contributes nothing ("3-rc1" once concatenated digits into 31).
+    assert updater.parse_version("1.2.3-rc1") == (1, 2, 3)
+    assert updater.parse_version("1.4.0-dev.abc123") == (1, 4, 0)
+    assert updater.parse_version("dev") == (0, 0, 0)
 
 
 def _fake_urlopen(payload):
@@ -39,6 +40,7 @@ def test_check_latest_returns_info_when_newer(monkeypatch):
             {
                 "name": "gamenote-setup-9.9.9.exe",
                 "size": 123,
+                "digest": f"sha256:{'a' * 64}",
                 "browser_download_url": "https://github.com/annotatedabstract/gamenote/releases/"
                 "download/v9.9.9/gamenote-setup-9.9.9.exe",
             }
@@ -50,6 +52,15 @@ def test_check_latest_returns_info_when_newer(monkeypatch):
     assert info.version == "9.9.9"
     assert info.url.endswith("gamenote-setup-9.9.9.exe")
     assert info.size == 123
+    assert info.sha256 == "a" * 64
+
+
+def test_asset_sha256_parses_and_rejects():
+    assert updater._asset_sha256({"digest": f"sha256:{'A' * 64}"}) == "a" * 64  # normalized
+    assert updater._asset_sha256({"digest": f"sha1:{'a' * 40}"}) == ""  # wrong algorithm
+    assert updater._asset_sha256({"digest": "sha256:nothex"}) == ""
+    assert updater._asset_sha256({"digest": f"sha256:{'a' * 63}"}) == ""  # wrong length
+    assert updater._asset_sha256({}) == ""  # pre-digest asset: size check only
 
 
 def test_check_latest_none_when_not_newer(monkeypatch):
@@ -112,6 +123,30 @@ def test_download_raises_on_size_mismatch(monkeypatch, tmp_path):
     with pytest.raises(OSError):
         updater.download(_GH_URL, expected_size=999)
     assert not (tmp_path / "gamenote-setup.exe.part").exists()  # partial cleaned up
+
+
+def test_download_verifies_sha256(monkeypatch, tmp_path):
+    monkeypatch.setattr(updater.tempfile, "gettempdir", lambda: str(tmp_path))
+    monkeypatch.setattr(updater.urllib.request, "urlopen", lambda *a, **k: _FakeResp(b"abcd"))
+    good = hashlib.sha256(b"abcd").hexdigest()
+    path = updater.download(_GH_URL, expected_size=4, expected_sha256=good.upper())
+    assert path.read_bytes() == b"abcd"  # case-insensitive match passes
+
+
+def test_download_raises_on_sha256_mismatch(monkeypatch, tmp_path):
+    monkeypatch.setattr(updater.tempfile, "gettempdir", lambda: str(tmp_path))
+    monkeypatch.setattr(updater.urllib.request, "urlopen", lambda *a, **k: _FakeResp(b"abcd"))
+    with pytest.raises(OSError, match="sha256"):
+        updater.download(_GH_URL, expected_size=4, expected_sha256="0" * 64)
+    assert not (tmp_path / "gamenote-setup.exe.part").exists()  # partial cleaned up
+    assert not (tmp_path / "gamenote-setup.exe").exists()  # nothing runnable left
+
+
+def test_download_without_digest_keeps_size_check_only(monkeypatch, tmp_path):
+    monkeypatch.setattr(updater.tempfile, "gettempdir", lambda: str(tmp_path))
+    monkeypatch.setattr(updater.urllib.request, "urlopen", lambda *a, **k: _FakeResp(b"abcd"))
+    path = updater.download(_GH_URL, expected_size=4, expected_sha256="")
+    assert path.read_bytes() == b"abcd"
 
 
 def test_download_rejects_untrusted_url(monkeypatch, tmp_path):

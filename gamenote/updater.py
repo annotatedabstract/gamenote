@@ -15,6 +15,7 @@ the releases page. All network work is best-effort and never raises into the UI.
 
 from __future__ import annotations
 
+import hashlib
 import json
 import logging
 import os
@@ -50,12 +51,14 @@ def current_version() -> str:
 
 
 def parse_version(s: str) -> tuple[int, int, int]:
-    """'v1.2.3' or '1.2' -> (1, 2, 3). Non-numeric junk is ignored."""
+    """'v1.2.3' or '1.2' -> (1, 2, 3). Each dot piece contributes only its
+    leading digits ('3-rc1' -> 3, not 31 -- digits after a suffix never
+    concatenate); a piece with no leading digits counts as 0."""
     s = (s or "").strip().lstrip("vV")
     parts: list[int] = []
     for piece in s.split("."):
-        digits = "".join(ch for ch in piece if ch.isdigit())
-        parts.append(int(digits) if digits else 0)
+        m = re.match(r"\d+", piece)
+        parts.append(int(m.group()) if m else 0)
     while len(parts) < 3:
         parts.append(0)
     return parts[0], parts[1], parts[2]
@@ -71,6 +74,7 @@ class UpdateInfo:
         size: int,
         notes: str,
         channel: str = "stable",
+        sha256: str = "",
     ) -> None:
         self.version = version
         self.tag = tag
@@ -79,6 +83,7 @@ class UpdateInfo:
         self.size = size  # expected byte size, for an integrity check
         self.notes = notes
         self.channel = channel  # "stable" or "dev"
+        self.sha256 = sha256  # expected hex digest ("" when the API had none)
 
 
 def _fetch_json(url: str, timeout: float) -> dict:
@@ -87,8 +92,17 @@ def _fetch_json(url: str, timeout: float) -> dict:
         return json.loads(resp.read().decode("utf-8"))
 
 
-def _installer_asset(data: dict) -> tuple[str, str, int]:
-    """(url, name, size) of a release's first trusted .exe asset, or ("", "", 0)."""
+def _asset_sha256(asset: dict) -> str:
+    """The asset's sha256 hex digest from the API's ``digest`` field, or ""
+    when absent or malformed (e.g. assets uploaded before GitHub introduced
+    digests). Without it the download still gets the size check."""
+    m = re.fullmatch(r"sha256:([0-9a-fA-F]{64})", str(asset.get("digest", "") or ""))
+    return m.group(1).lower() if m else ""
+
+
+def _installer_asset(data: dict) -> tuple[str, str, int, str]:
+    """(url, name, size, sha256) of a release's first trusted .exe asset, or
+    ("", "", 0, "")."""
     for asset in data.get("assets", []):
         asset_name = str(asset.get("name", ""))
         if asset_name.lower().endswith(".exe"):
@@ -98,8 +112,11 @@ def _installer_asset(data: dict) -> tuple[str, str, int]:
             except ValueError as e:
                 log.warning("Ignoring update asset: %s", e)
                 continue
-            return candidate, asset_name, int(asset.get("size", 0) or 0)
-    return "", "", 0
+            sha256 = _asset_sha256(asset)
+            if not sha256:
+                log.debug("Asset %s carries no sha256 digest; size check only.", asset_name)
+            return candidate, asset_name, int(asset.get("size", 0) or 0), sha256
+    return "", "", 0, ""
 
 
 def check_latest(timeout: float = 10.0) -> UpdateInfo | None:
@@ -116,14 +133,20 @@ def check_latest(timeout: float = 10.0) -> UpdateInfo | None:
     if parse_version(tag) <= parse_version(current_version()):
         return None
 
-    url, name, size = _installer_asset(data)
+    url, name, size, sha256 = _installer_asset(data)
     if not url:
         log.info("Newer release %s has no usable .exe asset; skipping.", tag)
         return None
 
     version = ".".join(str(p) for p in parse_version(tag))
     return UpdateInfo(
-        version=version, tag=tag, url=url, name=name, size=size, notes=str(data.get("body", ""))
+        version=version,
+        tag=tag,
+        url=url,
+        name=name,
+        size=size,
+        notes=str(data.get("body", "")),
+        sha256=sha256,
     )
 
 
@@ -187,7 +210,7 @@ def check_dev(timeout: float = 10.0) -> UpdateInfo | None:
     # offers (self-heals after the first dev install).
     if _ISO_FULL_RE.fullmatch(own_built_at) and built_at <= own_built_at:
         return None  # stale body / older build; never downgrade silently
-    url, name, size = _installer_asset(data)
+    url, name, size, sha256 = _installer_asset(data)
     if not url:
         log.info("Dev release has no usable .exe asset; skipping.")
         return None
@@ -199,6 +222,7 @@ def check_dev(timeout: float = 10.0) -> UpdateInfo | None:
         size=size,
         notes=body,
         channel="dev",
+        sha256=sha256,
     )
 
 
@@ -222,17 +246,23 @@ def _require_trusted_url(url: str) -> None:
 
 
 def download(
-    url: str, expected_size: int | None = None, progress_cb=None, timeout: float = 30.0
+    url: str,
+    expected_size: int | None = None,
+    expected_sha256: str = "",
+    progress_cb=None,
+    timeout: float = 30.0,
 ) -> Path:
     """Download ``url`` (must be an HTTPS GitHub URL) to a fixed temp path and
     return it. Writes to a ``.part`` file and atomically renames on success;
-    ``progress_cb`` (if given) gets (bytes_done, bytes_total). If ``expected_size``
-    is set and the finished file does not match, raises (guards a truncated
-    download). The partial file is removed on any failure."""
+    ``progress_cb`` (if given) gets (bytes_done, bytes_total). The finished file
+    must match ``expected_size`` (guards truncation) and, when the release
+    carried a digest, ``expected_sha256`` (guards corruption/tampering); either
+    mismatch raises. The partial file is removed on any failure."""
     _require_trusted_url(url)
     dest = Path(tempfile.gettempdir()) / "gamenote-setup.exe"
     part = dest.with_suffix(".exe.part")
     req = urllib.request.Request(url, headers={"User-Agent": "gamenote-updater"})
+    hasher = hashlib.sha256()
     try:
         with urllib.request.urlopen(req, timeout=timeout) as resp, open(part, "wb") as f:
             total = int(resp.headers.get("Content-Length", 0) or 0) or (expected_size or 0)
@@ -242,6 +272,7 @@ def download(
                 if not chunk:
                     break
                 f.write(chunk)
+                hasher.update(chunk)
                 done += len(chunk)
                 if progress_cb is not None and total:
                     progress_cb(done, total)
@@ -249,7 +280,11 @@ def download(
         actual = part.stat().st_size
         if expected_size and actual != expected_size:
             raise OSError(f"download size mismatch: got {actual}, expected {expected_size}")
-        os.replace(part, dest)  # atomic; only a complete download becomes the .exe
+        if expected_sha256 and hasher.hexdigest() != expected_sha256.lower():
+            raise OSError(
+                f"download sha256 mismatch: got {hasher.hexdigest()}, expected {expected_sha256}"
+            )
+        os.replace(part, dest)  # atomic; only a complete, verified download becomes the .exe
         return dest
     except BaseException:
         try:
@@ -295,7 +330,10 @@ class Updater(QObject):
     def _download(self, info: UpdateInfo) -> None:
         try:
             path = download(
-                info.url, expected_size=info.size, progress_cb=lambda d, t: self.progress.emit(d, t)
+                info.url,
+                expected_size=info.size,
+                expected_sha256=info.sha256,
+                progress_cb=lambda d, t: self.progress.emit(d, t),
             )
         except Exception as e:
             log.error("Update download failed: %s", e)

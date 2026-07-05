@@ -3,7 +3,8 @@ import types
 
 import pytest
 
-from gamenote.transcribe import Transcriber, _device_attempts
+from gamenote import transcribe as gn_transcribe
+from gamenote.transcribe import Transcriber, _device_attempts, resolve_model_source
 
 
 def _install_fake_faster_whisper(monkeypatch, fail_devices=()):
@@ -103,6 +104,56 @@ def test_needs_reload_tracks_config_changes(monkeypatch):
     assert t.needs_reload() is True  # cpu -> auto is a real change
     cfg["device"] = " CPU "
     assert t.needs_reload() is False
+
+
+def _model_dir(root, size):
+    d = root / size
+    d.mkdir(parents=True)
+    (d / "model.bin").write_bytes(b"\0")
+    return d
+
+
+def test_resolve_model_source_prefers_bundled_then_local_then_download(monkeypatch, tmp_path):
+    bundle = tmp_path / "bundle"
+    cache = tmp_path / "cache"
+    cache.mkdir()
+    monkeypatch.setattr(gn_transcribe, "_is_frozen", lambda: True)
+    monkeypatch.setattr(gn_transcribe, "_resource_base", lambda: bundle)
+    monkeypatch.setattr(gn_transcribe, "_writable_model_cache", lambda: cache)
+
+    # Nothing local: frozen builds download into the writable cache.
+    source, extra = resolve_model_source("small.en")
+    assert source == "small.en" and extra == {"download_root": str(cache)}
+
+    # A model in the writable cache (installer-migrated or hand-placed) loads
+    # offline as a local path.
+    local = _model_dir(cache, "small.en")
+    source, extra = resolve_model_source("small.en")
+    assert source == str(local) and extra == {"local_files_only": True}
+
+    # A bundled model still wins over the cache copy.
+    bundled = _model_dir(bundle / "models", "small.en")
+    source, extra = resolve_model_source("small.en")
+    assert source == str(bundled) and extra == {"local_files_only": True}
+
+
+def test_resolve_model_source_dev_uses_local_dir_or_default_cache(monkeypatch, tmp_path):
+    cache = tmp_path / "cache"
+    cache.mkdir()
+    monkeypatch.setattr(gn_transcribe, "_is_frozen", lambda: False)
+    monkeypatch.setattr(gn_transcribe, "_writable_model_cache", lambda: cache)
+
+    source, extra = resolve_model_source("small.en")
+    assert source == "small.en" and extra == {}  # default HF cache
+
+    local = _model_dir(cache, "small.en")
+    source, extra = resolve_model_source("small.en")
+    assert source == str(local) and extra == {"local_files_only": True}
+
+    # An empty size never resolves the cache root itself as a "model".
+    (cache / "model.bin").write_bytes(b"\0")
+    source, extra = resolve_model_source("")
+    assert source == "" and extra == {}
 
 
 def test_needs_reload_after_failed_load_only_on_new_target(monkeypatch):

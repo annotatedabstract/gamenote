@@ -163,8 +163,12 @@ Notes:
 - The model is not bundled, which keeps the build and installer small. The app
   downloads `small.en` on first run into `%LOCALAPPDATA%\gamenote\models` and
   reuses it across updates. The runtime still loads a model bundled at
-  `models/small.en` inside the app folder if one is present, so you can pre-bundle
-  it for a fully offline build.
+  `models/small.en` inside the app folder if one is present, so you can
+  pre-bundle it for a fully offline build. Upgrades wipe the app payload, but
+  the installer first moves any bundled model to `%LOCALAPPDATA%\gamenote\models`,
+  where the app also loads it from — so an offline machine stays offline-capable
+  across upgrades (you can also place a model folder there directly, e.g.
+  `%LOCALAPPDATA%\gamenote\models\small.en\model.bin` etc.).
 - The large CUDA wheels are not installed in the build environment, so they are
   not bundled. The CUDA path remains as a runtime fallback for anyone who installs
   `nvidia-cublas-cu12` and `nvidia-cudnn-cu12` and runs from source.

@@ -32,7 +32,8 @@ from .tray import Tray
 
 log = logging.getLogger("gamenote")
 
-SINGLE_INSTANCE_PORT = 49321  # localhost port used only to block a second instance
+SINGLE_INSTANCE_PORT = 49321  # non-Windows fallback: port bind blocks a second copy
+_MUTEX_NAME = "Local\\gamenote-single-instance"  # per logon session, like the app
 
 
 def _setup_logging(global_cfg: dict) -> None:
@@ -54,15 +55,65 @@ def _setup_logging(global_cfg: dict) -> None:
         logging.getLogger(noisy).setLevel(logging.WARNING)
 
 
-def single_instance_guard() -> socket.socket | None:
-    """Bind a localhost port so a second copy refuses to start. Returns the bound
-    socket (held for the process lifetime), or None if another instance owns it."""
+class _SingleInstanceGuard:
+    """Holds whatever OS object blocks a second instance for the process
+    lifetime; ``close()`` releases it (the OS also releases it on exit)."""
+
+    def __init__(self, mutex_handle: int | None = None, sock: socket.socket | None = None) -> None:
+        self._handle = mutex_handle
+        self._sock = sock
+
+    def close(self) -> None:
+        if self._handle is not None:
+            try:
+                import ctypes
+
+                ctypes.WinDLL("kernel32").CloseHandle(ctypes.c_void_p(self._handle))
+            except Exception:
+                pass
+            self._handle = None
+        if self._sock is not None:
+            self._sock.close()
+            self._sock = None
+
+
+def single_instance_guard() -> _SingleInstanceGuard | None:
+    """Block a second copy of the app. On Windows this is a named mutex, which
+    cannot false-positive the way the old fixed-port bind could when an
+    unrelated program owned the port. Elsewhere (dev convenience) it falls back
+    to the port bind. Returns a guard to hold for the process lifetime, or None
+    if another gamenote instance already owns it."""
+    if sys.platform.startswith("win"):
+        try:
+            import ctypes
+
+            kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+            kernel32.CreateMutexW.argtypes = [ctypes.c_void_p, ctypes.c_bool, ctypes.c_wchar_p]
+            kernel32.CreateMutexW.restype = ctypes.c_void_p  # never truncate a 64-bit handle
+            kernel32.CloseHandle.argtypes = [ctypes.c_void_p]
+            handle = kernel32.CreateMutexW(None, False, _MUTEX_NAME)
+            last_error = ctypes.get_last_error()
+            ERROR_ACCESS_DENIED = 5
+            ERROR_ALREADY_EXISTS = 183
+            if handle and last_error == ERROR_ALREADY_EXISTS:
+                kernel32.CloseHandle(handle)
+                return None
+            if handle:
+                return _SingleInstanceGuard(mutex_handle=handle)
+            if last_error == ERROR_ACCESS_DENIED:
+                # An elevated instance owns the mutex and its DACL refuses this
+                # unelevated process: that IS "already running", so do not fall
+                # through to the port guard (which the other instance never holds).
+                return None
+            log.warning("CreateMutexW failed (%d); using the port guard.", last_error)
+        except Exception as e:  # pragma: no cover - depends on the platform runtime
+            log.warning("Mutex guard unavailable (%s); using the port guard.", e)
     s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     try:
         s.bind(("127.0.0.1", SINGLE_INSTANCE_PORT))
     except OSError:
         return None
-    return s
+    return _SingleInstanceGuard(sock=s)
 
 
 def _draw_fallback_icon() -> QIcon:

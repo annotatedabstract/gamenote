@@ -50,6 +50,56 @@ Name: "english"; MessagesFile: "compiler:Default.isl"
 Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{cm:AdditionalIcons}"; Flags: unchecked
 Name: "startupicon"; Description: "Start {#MyAppName} automatically when I log in"; GroupDescription: "Startup:"; Flags: unchecked
 
+[InstallDelete]
+; The app payload is replaced wholesale on every install/upgrade. Deleting the
+; old _internal tree first means files renamed or removed between versions
+; (Python DLLs, collected packages) cannot linger and get loaded by mistake.
+; Config and log live in %APPDATA%\gamenote and downloaded models in
+; %LOCALAPPDATA%\gamenote, both untouched. A model bundled INSIDE the payload
+; (v1.0/v1.1 installs upgraded in place ever since, or a hand-pre-bundled
+; offline build) is rescued first: MigrateBundledModels below moves it to
+; %LOCALAPPDATA%\gamenote\models, where the app loads it offline.
+Type: filesandordirs; Name: "{app}\_internal"
+
+[Code]
+{ Move any model folders out of the payload before [InstallDelete] wipes it.
+  Same-volume renames, so this is instant even for a ~480 MB model. A child
+  that already exists in the destination is left alone (the copy there wins);
+  a failed rename just means the app re-downloads the model on next launch. }
+procedure MigrateBundledModels();
+var
+  FindRec: TFindRec;
+  Src, DestRoot, SrcChild, DestChild: string;
+begin
+  Src := ExpandConstant('{app}\_internal\models');
+  if not DirExists(Src) then
+    exit;
+  DestRoot := ExpandConstant('{localappdata}\gamenote\models');
+  ForceDirectories(DestRoot);
+  if FindFirst(Src + '\*', FindRec) then begin
+    try
+      repeat
+        if (FindRec.Name <> '.') and (FindRec.Name <> '..') then begin
+          SrcChild := Src + '\' + FindRec.Name;
+          DestChild := DestRoot + '\' + FindRec.Name;
+          if not DirExists(DestChild) and not FileExists(DestChild) then
+            RenameFile(SrcChild, DestChild);
+        end;
+      until not FindNext(FindRec);
+    finally
+      FindClose(FindRec);
+    end;
+  end;
+end;
+
+procedure CurStepChanged(CurStep: TSetupStep);
+begin
+  { ssInstall fires just before installation starts, i.e. before the
+    InstallDelete entries are processed. }
+  if CurStep = ssInstall then
+    MigrateBundledModels();
+end;
+
 [Files]
 ; The whole one-folder PyInstaller build (exe, _internal, DLLs). No model bundled;
 ; it downloads on first run.

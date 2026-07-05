@@ -97,8 +97,12 @@ def resolve_model_source(model_size: str) -> tuple[str, dict]:
 
     - Frozen with the model bundled under ``models/<size>/``: load that path
       offline (``local_files_only``).
-    - Frozen without a bundled model: download by name into a writable
-      ``%LOCALAPPDATA%\\gamenote\\models`` (never inside the read-only bundle).
+    - A model folder at ``%LOCALAPPDATA%\\gamenote\\models\\<size>\\``: load it
+      offline. This is where the installer migrates a bundled model on upgrade
+      (so a 1.0/1.1-era or hand-pre-bundled model survives the payload wipe),
+      and where one can be placed by hand for a fully offline machine.
+    - Frozen otherwise: download by name into that same writable cache (never
+      inside the read-only bundle).
     - Dev (not frozen): download by name into the default HF cache.
 
     Returns ``(model_size_or_path, extra_kwargs)``.
@@ -108,6 +112,11 @@ def resolve_model_source(model_size: str) -> tuple[str, dict]:
         if (bundled / "model.bin").exists():
             log.info("Using bundled model at %s", bundled)
             return str(bundled), {"local_files_only": True}
+    local = _writable_model_cache() / model_size
+    if model_size and (local / "model.bin").exists():
+        log.info("Using local model at %s", local)
+        return str(local), {"local_files_only": True}
+    if _is_frozen():
         return model_size, {"download_root": str(_writable_model_cache())}
     return model_size, {}
 
