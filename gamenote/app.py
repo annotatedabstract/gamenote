@@ -399,6 +399,17 @@ def main() -> int:
         ", ".join(f"{p.hotkey}->{p.id}" for p in profiles if p.hotkey),
     )
 
+    # The keyboard library's listener threads can die silently and it never
+    # restarts them; watch and revive so hotkeys don't stay dead until the
+    # next app restart (see ListenerWatchdog).
+    watchdog = gn_hotkeys.ListenerWatchdog(
+        manager, notify=lambda text: tray.show_message("gamenote", text)
+    )
+    watchdog_timer = QTimer()
+    watchdog_timer.setInterval(60_000)
+    watchdog_timer.timeout.connect(watchdog.check)
+    watchdog_timer.start()
+
     if gn_transcribe.nvidia_dll_dirs():
         log.info("Added NVIDIA DLL dirs for GPU: %s", ", ".join(gn_transcribe.nvidia_dll_dirs()))
     else:

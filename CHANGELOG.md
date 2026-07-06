@@ -6,6 +6,19 @@ versioning.
 
 ## [Unreleased]
 
+### Fixed
+- Hotkeys can no longer die silently for the rest of a session. The `keyboard`
+  library runs every hotkey callback on a single internal thread with no
+  exception handling and never restarts that thread once it stops, so one
+  error used to disable all hotkeys until the app was restarted - with nothing
+  in the log and the tray looking healthy. Hotkey callbacks are now wrapped so
+  no exception can reach that thread (failures land in gamenote.log instead),
+  and a watchdog checks the listener every minute: if one of its threads died,
+  it recreates the listener, clears stale pressed-key state, and re-registers
+  the hotkeys; if that is impossible, a tray balloon asks for a restart. See
+  `docs/hotkey-hardening.md` for the full failure analysis and the evaluated
+  native-API alternative.
+
 ## [1.5.0] - 2026-07-05
 
 ### Added
